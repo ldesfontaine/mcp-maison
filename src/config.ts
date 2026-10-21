@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseDevTokens } from './identity/dev-tokens.js';
+import { DEFAULT_REDIRECT_ALLOWLIST, isAllowlistEntryValid } from './identity/oauth/redirect-allowlist.js';
 import type { User } from './identity/user.js';
 
 // Configuration du cœur, validée une fois au démarrage. Chaque groupe d'outils valide la sienne
@@ -25,6 +26,9 @@ const coreEnv = z.object({
   OIDC_GROUPS_CLAIM: z.string().default('groups'),
   OIDC_ALLOWED_USERS: z.string().optional(),
   OIDC_ALLOWED_GROUPS: z.string().optional(),
+  // Adresses de retour acceptées à l'enregistrement d'un client (DCR) : URL exacte ou "http://hôte:*"
+  OAUTH_REDIRECT_ALLOWLIST: z.string().default(DEFAULT_REDIRECT_ALLOWLIST.join(','))
+    .refine((value) => splitList(value).every(isAllowlistEntryValid), 'URL exacte ou "schéma://hôte:*", séparées par des virgules'),
 
   // --- Identité : jetons de développement (jamais en production) ---
   AUTH_DEV_TOKENS: z.string().optional(), // "lucas:<jeton>,bob:<jeton>"
@@ -70,7 +74,8 @@ function buildOidcSettings(env: CoreEnv) {
     scopes: env.OIDC_SCOPES,
     groupsClaim: env.OIDC_GROUPS_CLAIM,
     allowedUsers: splitList(env.OIDC_ALLOWED_USERS),
-    allowedGroups: splitList(env.OIDC_ALLOWED_GROUPS)
+    allowedGroups: splitList(env.OIDC_ALLOWED_GROUPS),
+    redirectAllowlist: splitList(env.OAUTH_REDIRECT_ALLOWLIST)
   };
 }
 

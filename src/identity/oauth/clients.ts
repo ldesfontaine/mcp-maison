@@ -1,19 +1,32 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
+import { CustomOAuthError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { hashSecret } from '../secrets.js';
+import { isRedirectAllowed } from './redirect-allowlist.js';
 import type { OAuthStore } from './store.js';
 
 /**
  * Clients enregistrés dynamiquement (DCR) par Claude. Le secret est haché en base : le client
- * rendu au SDK n'en porte donc pas, et c'est requireClientSecret qui le vérifie.
+ * rendu au SDK n'en porte donc pas, et c'est requireClientSecret qui le vérifie. Les adresses de
+ * retour doivent être dans OAUTH_REDIRECT_ALLOWLIST, à l'enregistrement comme à chaque usage
+ * (un client enregistré avant un resserrement de la liste n'est plus reconnu).
  */
-export function createClientsStore(store: OAuthStore): OAuthRegisteredClientsStore {
+export function createClientsStore(store: OAuthStore, redirectAllowlist: string[]): OAuthRegisteredClientsStore {
+  const isClientAllowed = (client: OAuthClientInformationFull) =>
+    client.redirect_uris.every((uri) => isRedirectAllowed(String(uri), redirectAllowlist));
   return {
-    getClient: (clientId) => store.findClient(clientId)?.info,
+    getClient: (clientId) => {
+      const info = store.findClient(clientId)?.info;
+      return info && isClientAllowed(info) ? info : undefined;
+    },
     registerClient: (client) => {
       const full = client as OAuthClientInformationFull;
+      if (!isClientAllowed(full)) {
+        console.warn(`[oauth] enregistrement refusé : redirect_uri hors liste (${full.redirect_uris.join(', ')})`);
+        throw new CustomOAuthError('invalid_redirect_uri', 'redirect_uri non autorisée par ce serveur');
+      }
       const { client_secret: secret, client_secret_expires_at: _expiry, ...publicInfo } = full;
       store.saveClient(full.client_id, publicInfo, secret);
       return full;

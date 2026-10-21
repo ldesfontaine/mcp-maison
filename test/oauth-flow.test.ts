@@ -47,6 +47,31 @@ describe('serveur d\'autorisation OAuth 2.1 (connexion déléguée à l\'IdP OID
     expect(entries[0]).toMatchObject({ user: 'lucas', provider: 'oidc', tool: 'gitlab_publish', ok: true, result: { commitId: 'c0ffee' } });
   });
 
+  it('DCR : une redirect_uri hors OAUTH_REDIRECT_ALLOWLIST est refusée (invalid_redirect_uri), le loopback accepté', async () => {
+    const register = (redirectUri: string) => fetch(`${mcp.url}/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ redirect_uris: [redirectUri], token_endpoint_auth_method: 'none' })
+    });
+    for (const foreign of ['https://evil.example/cb', 'https://claude.ai.evil.example/api/mcp/auth_callback', 'http://127.0.0.1@evil.example/cb']) {
+      const refused = await register(foreign);
+      expect(refused.status).toBe(400);
+      expect((await refused.json()).error).toBe('invalid_redirect_uri');
+    }
+    expect((await register('http://localhost:6274/oauth/callback')).status).toBe(201);
+  });
+
+  it('/authorize avec une redirect_uri non enregistrée par ce client : refus direct, sans redirection', async () => {
+    const flow = await connectLikeClaude(mcp.url, idpServer.url);
+    const authorize = new URL(flow.metadata.authorization_endpoint);
+    authorize.search = new URLSearchParams({
+      response_type: 'code', client_id: flow.client.client_id, redirect_uri: 'http://localhost:9999/autre',
+      code_challenge: 'x'.repeat(43), code_challenge_method: 'S256'
+    }).toString();
+    const response = await fetch(authorize, { redirect: 'manual' });
+    expect(response.status).toBe(400);
+    expect(response.headers.get('location')).toBeNull();
+  });
+
   it('refresh : rotation, et un refresh rejoué révoque toute la famille', async () => {
     const { tokens, refresh } = await obtainTokens(mcp.url, idpServer.url);
     const rotated = await (await refresh(tokens.refresh_token)).json();

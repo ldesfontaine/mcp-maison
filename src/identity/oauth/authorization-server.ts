@@ -18,6 +18,7 @@ export interface AuthorizationServerOptions {
   store: OAuthStore;
   idp: IdpGateway;
   resource: URL; // URL de /mcp : audience des jetons émis
+  redirectAllowlist: string[]; // OAUTH_REDIRECT_ALLOWLIST
 }
 
 const isSameUrl = (a: string, b: string) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
@@ -31,7 +32,7 @@ export class AuthorizationServer implements OAuthServerProvider {
   readonly clientsStore;
 
   constructor(private options: AuthorizationServerOptions) {
-    this.clientsStore = createClientsStore(options.store);
+    this.clientsStore = createClientsStore(options.store, options.redirectAllowlist);
   }
 
   /** Étape 1 : on garde la demande de Claude et on envoie le navigateur chez l'IdP. */

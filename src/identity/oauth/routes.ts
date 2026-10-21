@@ -23,7 +23,7 @@ export function mountOAuth(app: Express, oidc: OidcConfig, databasePath: string)
   // Clé tirée du secret OIDC : une copie de la base seule ne déchiffre pas les refresh tokens de l'IdP.
   const sealingKey = deriveKey(oidc.clientSecret, 'idp-refresh');
   const idp = new IdpGateway(oidcClient, { sealingKey, allowedUsers: oidc.allowedUsers, allowedGroups: oidc.allowedGroups });
-  const server = new AuthorizationServer({ store, idp, resource });
+  const server = new AuthorizationServer({ store, idp, resource, redirectAllowlist: oidc.redirectAllowlist });
 
   app.post(['/token', '/revoke'], express.urlencoded({ extended: false }), requireClientSecret(store));
   // Limites de débit relevées : tous les utilisateurs de claude.ai arrivent des mêmes IP Anthropic.

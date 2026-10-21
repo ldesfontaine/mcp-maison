@@ -31,6 +31,10 @@ il envoie la personne chez l'IdP, lit son identité sur `userinfo`, puis émet s
 - Accès 1 h, refresh 30 jours, rotation à chaque usage. Un refresh présenté deux fois révoque toute sa famille.
 - Codes, jetons et secrets de client sont hachés en base. Seul le verifier PKCE envoyé à l'IdP est en clair, 10 minutes.
 - `OIDC_ALLOWED_USERS` / `OIDC_ALLOWED_GROUPS` filtrent qui peut se connecter. Vides : tout compte de l'IdP.
+- Un client ne s'enregistre (DCR) qu'avec des adresses de retour de `OAUTH_REDIRECT_ALLOWLIST` ; sinon
+  `invalid_redirect_uri`. Défaut : `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`
+  (annoncé par Anthropic comme futur remplaçant), et `http://127.0.0.1:*`, `http://localhost:*` (Claude Code,
+  MCP Inspector : n'importe quel port). Une entrée est une URL exacte, ou `schéma://hôte:*`.
 
 ## L'identité suit l'IdP
 
@@ -58,6 +62,7 @@ Pour cela, le refresh token de l'IdP est gardé en base, **chiffré** (AES-256-G
 | `OIDC_SCOPES` | Défaut `openid profile email` |
 | `OIDC_GROUPS_CLAIM` | Claim de `userinfo` qui porte les groupes, défaut `groups` |
 | `OIDC_ALLOWED_USERS`, `OIDC_ALLOWED_GROUPS` | Optionnels, séparés par des virgules |
+| `OAUTH_REDIRECT_ALLOWLIST` | Adresses de retour acceptées pour les clients (défaut : Claude et la boucle locale) |
 
 Chez tout IdP, l'**URI de redirection** à déclarer est `${MCP_PUBLIC_URL}/oauth/callback`, exactement
 (ex. `https://mcp.example.com/oauth/callback`). Si un seul des quatre premiers est renseigné, les autres
@@ -70,7 +75,11 @@ GitLab est un IdP OIDC standard : rien de spécifique côté code.
 1. *Admin → Applications → New application* (application d'instance), ou *groupe → Settings → Applications*.
 2. **Redirect URI** : `https://mcp.example.com/oauth/callback`.
 3. **Confidential** : oui. **Scopes** : `openid`, `profile`, `email`. Rien d'autre (pas besoin de `read_user` ni `api`).
-4. Application d'instance : cocher *Trusted* évite l'écran de consentement.
+4. **Ne pas cocher *Trusted***. mcp-maison n'affiche pas d'écran de consentement à lui : celui de l'IdP est
+   le seul moment où la personne voit qu'une application demande son identité. Sans lui, un lien piégé
+   (un client enregistré par un tiers) connecterait la personne sans qu'elle s'en aperçoive. La liste
+   `OAUTH_REDIRECT_ALLOWLIST` empêche déjà que le code parte ailleurs que chez Claude ; l'écran de
+   l'IdP est la seconde barrière, et ne coûte qu'un clic à la première connexion.
 5. Dans `.env` :
    ```
    MCP_PUBLIC_URL=https://mcp.example.com

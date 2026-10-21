@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { fakeOidc } from './fakes.js';
 import { callTool, extractText, listen, oidcEnv, startMcp } from './helpers.js';
-import { connectLikeClaude, obtainTokens } from './oauth-helpers.js';
+import { CLAUDE_CALLBACK, connectLikeClaude, obtainTokens } from './oauth-helpers.js';
 
 const claims = () => ({ sub: 'f3a1', preferred_username: 'marie', name: 'Marie C.', email: 'marie@example.com', groups: ['integrateurs'] });
 const stops: (() => unknown)[] = [];
@@ -37,11 +37,12 @@ describe('identité OIDC (découverte .well-known, userinfo)', () => {
     const metadata = await (await fetch(`${mcp.url}/.well-known/oauth-authorization-server`)).json();
     const registration = await (await fetch(metadata.registration_endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ redirect_uris: ['https://claude.ai/cb'], token_endpoint_auth_method: 'none' })
+      body: JSON.stringify({ redirect_uris: [CLAUDE_CALLBACK], token_endpoint_auth_method: 'none' })
     })).json();
     const authorize = new URL(metadata.authorization_endpoint);
     authorize.search = new URLSearchParams({
-      response_type: 'code', client_id: registration.client_id, redirect_uri: 'https://claude.ai/cb', code_challenge: 'x'.repeat(43), code_challenge_method: 'S256'
+      response_type: 'code', client_id: registration.client_id, redirect_uri: CLAUDE_CALLBACK,
+      code_challenge: 'x'.repeat(43), code_challenge_method: 'S256'
     }).toString();
     const response = await fetch(authorize, { redirect: 'manual' });
     expect(response.status).toBe(302);

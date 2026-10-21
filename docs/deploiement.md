@@ -76,6 +76,7 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `OIDC_GROUPS_CLAIM` | groups | Claim de `userinfo` qui porte les groupes |
 | `OIDC_ALLOWED_USERS` | | Qui peut se connecter, par identifiant (vide : tout le monde) |
 | `OIDC_ALLOWED_GROUPS` | | Qui peut se connecter, par groupe |
+| `OAUTH_REDIRECT_ALLOWLIST` | Claude + boucle locale | Adresses de retour acceptées pour les clients DCR (`identite.md`) |
 | `AUTH_DEV_TOKENS` | | `id:jeton,…`, hors production seulement |
 | `DATABASE_PATH` | ./data/mcp-maison.db | Base SQLite de l'état OAuth |
 | `AUDIT_LOG_PATH` | ./data/audit.jsonl | Journal |

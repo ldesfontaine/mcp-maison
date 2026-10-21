@@ -24,7 +24,7 @@ export function describeIdentity(config: Config): string[] {
 export function createApp(rawEnv: NodeJS.ProcessEnv) {
   const env = dropEmptyValues(rawEnv);
   const config = parseConfig(env);
-  const { tools } = loadToolGroups(config.toolGroups, env);
+  const { tools, skipped } = loadToolGroups(config.toolGroups, env);
   const authorizer = loadAuthorizer(config.PERMISSIONS_FILE);
   const audit = new AuditLog(config.AUDIT_LOG_PATH);
   const mcp = createMcpSessions(() => buildMcpServer({ tools, audit, authorizer }));
@@ -32,12 +32,16 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   const app = express();
   app.disable('x-powered-by');
   if (config.TRUST_PROXY) app.set('trust proxy', /^\d+$/.test(config.TRUST_PROXY) ? Number(config.TRUST_PROXY) : config.TRUST_PROXY);
-  if (config.allowedHosts.length) app.use(hostHeaderValidation(config.allowedHosts));
 
-  // Pas d'authentification ici : rien de sensible, juste de quoi superviser.
+  // Avant la validation de Host : la sonde Docker et la supervision appellent 127.0.0.1, pas le nom public.
+  // Pas d'authentification : des noms d'outils et de groupes, aucune valeur de configuration.
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', identity: describeIdentity(config), tools: tools.map((tool) => tool.name), sessions: mcp.sessions.size });
+    res.json({
+      status: 'ok', identity: describeIdentity(config), tools: tools.map((tool) => tool.name),
+      skippedGroups: skipped.map((skip) => skip.group), sessions: mcp.sessions.size
+    });
   });
+  if (config.allowedHosts.length) app.use(hostHeaderValidation(config.allowedHosts));
 
   const oauth = config.oidc ? mountOAuth(app, config.oidc, config.DATABASE_PATH) : undefined;
   const bearer = requireBearerAuth({

@@ -17,7 +17,7 @@ npm run build && npm start    # comme en prod
 cp .env.example .env && vi .env
 mkdir -p data && sudo chown 1000:1000 data     # écrit par l'utilisateur "node" du conteneur
 docker compose up -d --build
-curl http://127.0.0.1:3000/health              # outils chargés, mode d'auth
+curl http://127.0.0.1:3000/health              # identité, outils chargés, groupes ignorés
 docker compose logs mcp | grep -i "non chargé" # groupes ignorés faute de config
 ```
 

@@ -99,7 +99,8 @@ it('meteo_current relaie la réponse du service', async () => {
 | Nom inconnu dans `TOOL_GROUPS` | Avertissement, le reste démarre |
 | Deux outils de même nom, permission hors du groupe | Le serveur refuse de démarrer (erreur de code, pas de config) |
 
-`GET /health` liste les outils réellement chargés.
+`GET /health` liste les outils réellement chargés et les groupes ignorés (`skippedGroups`) ; la raison est dans les logs.
+Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
 
 ## À faire à chaque intégration
 

@@ -4,7 +4,8 @@ import { dirname } from 'node:path';
 /** Une ligne du journal (JSON Lines). Jamais de contenu de fichier ni de secret. */
 export interface AuditEntry {
   ts: string; // ISO 8601
-  user: string; // User.id
+  user: string; // User.id (sub OIDC)
+  username?: string; // lisible, pour filtrer et lire le journal
   userName?: string;
   provider: string; // oidc | dev-token
   tool: string;
@@ -57,7 +58,7 @@ export class AuditLog {
     await this.queue;
     const entries = (await this.readEntries()).filter((entry) =>
       (!filter.slug || entry.args?.slug === filter.slug)
-      && (!filter.user || entry.user === filter.user)
+      && (!filter.user || entry.user === filter.user || entry.username === filter.user)
       && (!filter.tool || entry.tool === filter.tool));
     return entries.slice(-(filter.limit ?? 20)).reverse();
   }

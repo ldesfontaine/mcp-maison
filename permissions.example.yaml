@@ -7,7 +7,8 @@ everyone:            # toute personne connectée
   - core:ping        # ping
   - core:whoami      # whoami : identité, permissions effectives, outils permis
 
-users:               # par identifiant (preferred_username OIDC, ou id de AUTH_DEV_TOKENS)
+# Préférer les groupes : un username peut être modifié par la personne chez certains IdP.
+users:               # par sub OIDC (voir whoami) ou username, ou id de AUTH_DEV_TOKENS
   lucas: ["*"]
 
 groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/dev")

@@ -23,7 +23,7 @@ describe('identité OIDC (découverte .well-known, userinfo)', () => {
     const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims()));
     const { tokens } = await obtainTokens(mcp.url, idpUrl);
     const me = await whoami(mcp.url, tokens.access_token);
-    expect(me).toMatchObject({ id: 'marie', name: 'Marie C.', provider: 'oidc', groups: ['integrateurs'] });
+    expect(me).toMatchObject({ id: 'f3a1', username: 'marie', name: 'Marie C.', provider: 'oidc', groups: ['integrateurs'] });
     expect(me.allowedTools).toEqual(['ping', 'whoami', 'gitlab_publish', 'gitlab_list_publications']);
   });
 
@@ -92,5 +92,21 @@ describe('identité relue chez l\'IdP à chaque refresh', () => {
     const renewed = await (await refresh(tokens.refresh_token)).json();
     expect((await whoami(mcp.url, renewed.access_token)).groups).toEqual(['integrateurs']);
     warn.mockRestore();
+  });
+
+  it('l\'identité est le sub : un preferred_username modifié chez l\'IdP ne change ni l\'identité ni ses droits', async () => {
+    const idp = fakeOidc(claims());
+    const idpServer = await listen(idp.app);
+    const mcp = await startMcp(oidcEnv(idpServer.url), {
+      rules: { everyone: ['core:ping', 'core:whoami'], users: { f3a1: ['core:audit'] }, groups: {} }
+    });
+    stops.push(() => idpServer.server.close(), mcp.stop);
+    const { tokens, refresh } = await obtainTokens(mcp.url, idpServer.url);
+    expect((await whoami(mcp.url, tokens.access_token)).permissions).toEqual(['core:ping', 'core:whoami', 'core:audit']);
+
+    idp.claims.preferred_username = 'marie-renommee';
+    const renewed = await (await refresh(tokens.refresh_token)).json();
+    const me = await whoami(mcp.url, renewed.access_token);
+    expect(me).toMatchObject({ id: 'f3a1', username: 'marie-renommee', permissions: ['core:ping', 'core:whoami', 'core:audit'] });
   });
 });

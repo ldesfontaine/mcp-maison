@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import type { Authorizer } from '../authorization/authorizer.js';
-import { getUserFromAuth } from '../identity/user.js';
+import { getDisplayId, getUserFromAuth } from '../identity/user.js';
 import type { AuditLog } from './log.js';
 
 export const AUDIT_PERMISSION = 'core:audit';
@@ -10,7 +10,7 @@ export function createAuditHandler(audit: AuditLog, authorizer: Authorizer): Req
   return async (req, res) => {
     const user = getUserFromAuth(req.auth);
     if (!authorizer.can(user, AUDIT_PERMISSION)) {
-      return void res.status(403).json({ error: `permission ${AUDIT_PERMISSION} manquante pour ${user.id}` });
+      return void res.status(403).json({ error: `permission ${AUDIT_PERMISSION} manquante pour ${getDisplayId(user)}` });
     }
     const query = req.query as Record<string, string | undefined>;
     const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 1000);

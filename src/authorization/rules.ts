@@ -9,7 +9,7 @@ const permissionList = z.array(z.string().regex(/^(\*|[a-z0-9_-]+:(\*|[a-z0-9_-]
 
 const rulesSchema = z.strictObject({
   everyone: permissionList.default([]), // tout utilisateur identifié
-  users: z.record(z.string(), permissionList).default({}), // par identifiant (User.id)
+  users: z.record(z.string(), permissionList).default({}), // par sub (User.id) ou username
   groups: z.record(z.string(), permissionList).default({}) // par groupe de l'IdP (User.groups)
 });
 
@@ -29,10 +29,15 @@ export function parsePermissionRules(yamlText: string, source: string): Permissi
   throw new Error(`${source} invalide :\n${lines.join('\n')}`);
 }
 
-/** Toutes les permissions accordées à l'utilisateur : everyone + les siennes + celles de ses groupes. */
+/**
+ * Toutes les permissions accordées : everyone + les siennes (par sub ou par username) + celles de ses groupes.
+ * Sans doublon, dans l'ordre d'apparition.
+ */
 export function listGrantedPermissions(rules: PermissionRules, user: User): string[] {
+  const keys = [user.id, ...(user.username && user.username !== user.id ? [user.username] : [])];
+  const fromUser = keys.flatMap((key) => rules.users[key] ?? []);
   const fromGroups = (user.groups ?? []).flatMap((group) => rules.groups[group] ?? []);
-  return [...rules.everyone, ...(rules.users[user.id] ?? []), ...fromGroups];
+  return [...new Set([...rules.everyone, ...fromUser, ...fromGroups])];
 }
 
 export function matchesPermission(granted: string, wanted: string): boolean {

@@ -6,6 +6,7 @@ import type { OAuthClientInformationFull, OAuthTokens } from '@modelcontextproto
 import { InvalidGrantError, InvalidTargetError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { generateSecret } from '../secrets.js';
 import { createClientsStore } from './clients.js';
+import { getDisplayId } from '../user.js';
 import type { IdpGateway, SignedInIdentity } from './idp-gateway.js';
 import { getEpochSeconds, type OAuthStore, type StoredToken } from './store.js';
 
@@ -63,7 +64,7 @@ export class AuthorizationServer implements OAuthServerProvider {
         ...identity, clientId: request.clientId, challenge: request.codeChallenge, redirectUri: request.redirectUri,
         expiresAt: getEpochSeconds() + CODE_TTL
       });
-      console.log(`[oauth] connexion de ${identity.user.id}`);
+      console.log(`[oauth] connexion de ${getDisplayId(identity.user)} (sub ${identity.user.id})`);
       back.searchParams.set('code', code);
     } catch (error) {
       back.searchParams.set('error', 'access_denied');
@@ -94,7 +95,7 @@ export class AuthorizationServer implements OAuthServerProvider {
     }
     if (!this.options.store.markRefreshUsed(refreshToken)) {
       this.options.store.deleteFamily(stored.familyId);
-      console.warn(`[oauth] refresh rejoué pour ${stored.user.id} : famille révoquée`);
+      console.warn(`[oauth] refresh rejoué pour ${getDisplayId(stored.user)} : famille révoquée`);
       throw new InvalidGrantError('refresh token déjà utilisé');
     }
     const identity = await this.renewIdentity(stored);
@@ -120,7 +121,7 @@ export class AuthorizationServer implements OAuthServerProvider {
       return await this.options.idp.renew(stored);
     } catch (error) {
       this.options.store.deleteFamily(stored.familyId);
-      console.warn(`[oauth] identité de ${stored.user.id} non renouvelée (${(error as Error).message}) : famille révoquée`);
+      console.warn(`[oauth] identité de ${getDisplayId(stored.user)} non renouvelée (${(error as Error).message}) : famille révoquée`);
       throw new InvalidGrantError("identité non renouvelée par l'IdP : reconnecter le connecteur");
     }
   }

@@ -25,7 +25,7 @@ describe('persistance SQLite', () => {
 
     // Même dossier de données, nouveau processus : l'access token et le client DCR sont toujours connus.
     const second = await startMcp(oauthEnv(), { dataDir: first.dataDir });
-    expect(JSON.parse(extractText(await callTool(second.url, tokens.access_token, 'whoami')))).toMatchObject({ id: 'lucas', provider: 'oidc' });
+    expect(JSON.parse(extractText(await callTool(second.url, tokens.access_token, 'whoami')))).toMatchObject({ id: '7', username: 'lucas', provider: 'oidc' });
 
     const metadata = await (await fetch(`${second.url}/.well-known/oauth-authorization-server`)).json();
     const refreshed = await fetch(metadata.token_endpoint, {

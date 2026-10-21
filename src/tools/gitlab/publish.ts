@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getDisplayId } from '../../identity/user.js';
 import { defineTool, replyError, replyText } from '../types.js';
 import { publishFiles } from './api.js';
 import type { GitlabConfig } from './config.js';
@@ -46,13 +47,13 @@ export function createPublishTool(config: GitlabConfig) {
       const duplicates = files.map((f) => f.path).filter((path, index, all) => all.indexOf(path) !== index);
       if (duplicates.length) return replyError(`Chemins en double : ${[...new Set(duplicates)].join(', ')}`);
       try {
-        const result = await publishFiles(config, slug, files, message, { id: user.id, name: user.name, email: user.email });
+        const result = await publishFiles(config, slug, files, message, { id: getDisplayId(user), name: user.name, email: user.email });
         note({ commitId: result.commitId, commitUrl: result.commitUrl, publicUrl: result.publicUrl, created: result.created.length, updated: result.updated.length });
         logger.info(`publié ${result.publicUrl} (${result.commitId})`);
         return replyText([
           `Publié : ${result.publicUrl}`,
           `Commit : ${result.commitUrl}`,
-          `Par : ${user.id} — Créés : ${result.created.length} — Mis à jour : ${result.updated.length}`,
+          `Par : ${getDisplayId(user)} — Créés : ${result.created.length} — Mis à jour : ${result.updated.length}`,
           '(La page est en ligne une fois la CI du dépôt terminée.)'
         ].join('\n'));
       } catch (error) {

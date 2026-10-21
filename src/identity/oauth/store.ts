@@ -72,10 +72,11 @@ export class OAuthStore {
   }
 
   saveToken(token: string, stored: StoredToken) {
-    this.db.prepare(`INSERT INTO oauth_tokens (token_hash, kind, client_id, family_id, user_id, user, scopes, idp_refresh, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(hashSecret(token), stored.kind, stored.clientId, stored.familyId, stored.user.id, JSON.stringify(stored.user),
-        stored.scopes.join(' '), stored.sealedIdpRefresh ?? null, stored.expiresAt);
+    this.db.prepare(`INSERT INTO oauth_tokens
+      (token_hash, kind, client_id, family_id, user_id, username, user, scopes, idp_refresh, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(hashSecret(token), stored.kind, stored.clientId, stored.familyId, stored.user.id, stored.user.username ?? null,
+        JSON.stringify(stored.user), stored.scopes.join(' '), stored.sealedIdpRefresh ?? null, stored.expiresAt);
   }
 
   findToken(token: string): StoredToken | undefined {

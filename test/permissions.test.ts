@@ -37,6 +37,12 @@ describe('règles de droits', () => {
     expect(rulesGrant(rules, user, 'core:audit')).toBe(false);
   });
 
+  it('users : une règle par sub ou par username, sans doublon', () => {
+    const byBoth: PermissionRules = { everyone: [], users: { f3a1: ['core:audit'], marie: ['core:audit', 'gitlab:read'] }, groups: {} };
+    const marie = { id: 'f3a1', username: 'marie', provider: 'oidc' as const };
+    expect(listGrantedPermissions(byBoth, marie)).toEqual(['core:audit', 'gitlab:read']);
+  });
+
   it('sans fichier de règles : droits minimaux (ping, whoami), jamais "*" implicite', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const authorizer = loadAuthorizer(); // pas de ./permissions.yaml dans le dépôt

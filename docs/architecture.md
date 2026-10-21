@@ -27,7 +27,9 @@ src/identity/
   oauth/idp-gateway.ts         ce qu'on demande à l'IdP : connexion, renouvellement, comptes autorisés
   oauth/oidc.ts                client OIDC générique : découverte, token_endpoint, userinfo
   oauth/clients.ts             clients DCR et vérification de leur secret
-  oauth/database.ts, store.ts  SQLite : schéma, puis lectures et écritures
+  oauth/database.ts            ouverture SQLite et application des migrations
+  oauth/migrations.ts          migrations numérotées du schéma (table schema_version)
+  oauth/store.ts               lectures et écritures de l'état OAuth
 src/authorization/
   authorizer.ts                l'interface Authorizer, seule connue du reste du code
   rules.ts                     format de permissions.yaml et calcul des droits

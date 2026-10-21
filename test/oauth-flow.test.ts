@@ -44,7 +44,7 @@ describe('serveur d\'autorisation OAuth 2.1 (connexion déléguée à l\'IdP OID
     expect(published.isError).toBeFalsy();
     expect(gitlab.commits[0]).toMatchObject({ author_name: 'Lucas D.', author_email: 'lucas@example.com', commit_message: 'publish(acme): 1 fichier(s) (via lucas)' });
     const entries = await (await fetch(`${mcp.url}/audit?slug=acme`, { headers: { Authorization: `Bearer ${tokens.access_token}` } })).json();
-    expect(entries[0]).toMatchObject({ user: 'lucas', provider: 'oidc', tool: 'gitlab_publish', ok: true, result: { commitId: 'c0ffee' } });
+    expect(entries[0]).toMatchObject({ user: '7', username: 'lucas', provider: 'oidc', tool: 'gitlab_publish', ok: true, result: { commitId: 'c0ffee' } });
   });
 
   it('DCR : une redirect_uri hors OAUTH_REDIRECT_ALLOWLIST est refusée (invalid_redirect_uri), le loopback accepté', async () => {

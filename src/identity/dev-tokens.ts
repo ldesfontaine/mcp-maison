@@ -20,7 +20,7 @@ export function parseDevTokens(spec: string): Map<string, User> {
     if (separator < 1 || !/^[A-Za-z0-9._-]+$/.test(id)) throw new Error(`entrée n°${index + 1} : format identifiant:jeton attendu`);
     if (token.length < MIN_TOKEN_LENGTH) throw new Error(`jeton de "${id}" trop court (${MIN_TOKEN_LENGTH} caractères minimum)`);
     if (usersByHash.has(hashSecret(token))) throw new Error(`jeton en double (identifiant "${id}")`);
-    usersByHash.set(hashSecret(token), { id, name: id, provider: 'dev-token' });
+    usersByHash.set(hashSecret(token), { id, username: id, name: id, provider: 'dev-token' });
   });
   if (!usersByHash.size) throw new Error('aucun jeton');
   return usersByHash;

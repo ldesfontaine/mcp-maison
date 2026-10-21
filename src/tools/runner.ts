@@ -3,7 +3,7 @@ import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/proto
 import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
-import { getUserFromAuth, type User } from '../identity/user.js';
+import { getDisplayId, getUserFromAuth, type User } from '../identity/user.js';
 import { replyError, type Logger, type Tool, type ToolContext } from './types.js';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -34,14 +34,14 @@ export function buildMcpServer(deps: RunnerDependencies): McpServer {
 async function runTool(tool: Tool, args: Record<string, unknown>, user: User, deps: RunnerDependencies): Promise<CallToolResult> {
   const started = Date.now();
   const entry: AuditEntry = {
-    ts: new Date(started).toISOString(), user: user.id, userName: user.name, provider: user.provider, tool: tool.name,
+    ts: new Date(started).toISOString(), user: user.id, username: user.username, userName: user.name, provider: user.provider, tool: tool.name,
     args: (tool.auditArgs ?? summarizeArgs)(args), ok: false, ms: 0
   };
 
   if (!deps.authorizer.can(user, tool.permission)) {
     await deps.audit.write({ ...entry, denied: true, error: `permission ${tool.permission} manquante` });
     return replyError(
-      `Accès refusé : ${tool.name} demande la permission « ${tool.permission} », que ${user.id} n'a pas. ` +
+      `Accès refusé : ${tool.name} demande la permission « ${tool.permission} », que ${getDisplayId(user)} n'a pas. ` +
       "Demandez-la à l'administrateur du serveur (permissions.yaml)."
     );
   }
@@ -72,7 +72,7 @@ function extractText(result: CallToolResult): string {
 }
 
 function createLogger(toolName: string, user: User): Logger {
-  const prefix = `[${toolName}] [${user.id}]`;
+  const prefix = `[${toolName}] [${getDisplayId(user)}]`;
   return {
     info: (message, data) => console.log(prefix, message, data ?? ''),
     warn: (message, data) => console.warn(prefix, message, data ?? ''),

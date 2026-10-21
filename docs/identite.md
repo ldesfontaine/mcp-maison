@@ -1,6 +1,11 @@
 # Identité : qui appelle
 
-Chaque appel d'outil arrive avec une personne : `User { id, name?, email?, provider, groups? }`.
+Chaque appel d'outil arrive avec une personne : `User { id, username?, name?, email?, provider, groups? }`.
+
+- `id` est le claim **`sub`** de l'IdP : attribué par lui, il ne change jamais. C'est lui qui lie les jetons,
+  les sessions et le journal à la personne.
+- `username` est `preferred_username` : lisible, affiché dans les logs, les messages et les commits. Chez
+  certains IdP la personne peut le modifier elle-même : il n'identifie donc personne de façon sûre.
 Elle sert aux droits (`droits.md`), au journal, et aux outils (ex. auteur du commit GitLab).
 
 Il n'y a qu'une voie en production : **OpenID Connect**, avec n'importe quel IdP (GitLab, Keycloak,
@@ -10,7 +15,7 @@ Authentik, Zitadel, Google…). Les jetons de développement ne servent qu'aux t
 | --- | --- | --- |
 | Pour | Production, claude.ai Team | Tests, poste local, démo curl |
 | Comment | Chaque personne se connecte à l'IdP | `AUTH_DEV_TOKENS=lucas:<jeton>,bob:<jeton>` |
-| Identité | `preferred_username` (sinon `sub`), groupes de l'IdP | L'identifiant devant le jeton, sans groupe |
+| Identité | `sub` (+ `preferred_username` pour l'affichage), groupes de l'IdP | L'identifiant devant le jeton, sans groupe |
 | Stockage | SQLite (`DATABASE_PATH`), tout haché | Aucun (empreintes en mémoire) |
 | Côté Claude | Bouton *Connect* | En-tête `Authorization: Bearer …` |
 | En production | Oui | **Refusé** : le serveur ne démarre pas si `NODE_ENV=production` |
@@ -61,7 +66,7 @@ Pour cela, le refresh token de l'IdP est gardé en base, **chiffré** (AES-256-G
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | L'application déclarée chez l'IdP (confidentielle) |
 | `OIDC_SCOPES` | Défaut `openid profile email` |
 | `OIDC_GROUPS_CLAIM` | Claim de `userinfo` qui porte les groupes, défaut `groups` |
-| `OIDC_ALLOWED_USERS`, `OIDC_ALLOWED_GROUPS` | Optionnels, séparés par des virgules |
+| `OIDC_ALLOWED_USERS`, `OIDC_ALLOWED_GROUPS` | Optionnels, séparés par des virgules ; personnes par `sub` ou username |
 | `OAUTH_REDIRECT_ALLOWLIST` | Adresses de retour acceptées pour les clients (défaut : Claude et la boucle locale) |
 
 Chez tout IdP, l'**URI de redirection** à déclarer est `${MCP_PUBLIC_URL}/oauth/callback`, exactement
@@ -88,7 +93,7 @@ GitLab est un IdP OIDC standard : rien de spécifique côté code.
    OIDC_CLIENT_SECRET=<Secret>
    ```
 
-L'identifiant est le username GitLab (`preferred_username`). Le claim `groups` de `userinfo` donne les
+Le `sub` est l'ID numérique du compte GitLab (`whoami` le montre) ; le username GitLab devient `username`. Le claim `groups` de `userinfo` donne les
 chemins complets des groupes (ex. `exemple/dev`), sous-groupes et groupes parents compris :
 c'est ce qui s'écrit dans `permissions.yaml`. L'e-mail n'arrive que si la personne a un e-mail public.
 
@@ -130,5 +135,6 @@ Les options, dans l'ordre :
 ## Retirer quelqu'un
 
 1. Le retirer de `permissions.yaml` (ou d'un groupe autorisé) : ses appels sont refusés dès l'enregistrement du fichier.
-2. Couper ses jetons : `sqlite3 data/mcp-maison.db "DELETE FROM oauth_tokens WHERE user_id = 'bob'"`.
+2. Couper ses jetons : `sqlite3 data/mcp-maison.db "DELETE FROM oauth_tokens WHERE username = 'bob'"`
+   (ou `WHERE user_id = '<sub>'`, le `sub` lu dans le journal).
 3. Bloquer son compte chez l'IdP : il ne pourra plus se reconnecter.

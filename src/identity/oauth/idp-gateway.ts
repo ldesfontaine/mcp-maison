@@ -1,5 +1,5 @@
 import { openSealedSecret, sealSecret } from '../secrets.js';
-import type { User } from '../user.js';
+import { getDisplayId, type User } from '../user.js';
 import type { IdpSession, OidcClient } from './oidc.js';
 
 /** Une identité prête à stocker : le refresh token de l'IdP y est déjà chiffré. */
@@ -29,7 +29,7 @@ export class IdpGateway {
     const session = await this.idp.signIn(code, codeVerifier);
     this.assertAllowed(session.user);
     if (!session.refreshToken) {
-      console.warn(`[oauth] l'IdP n'a pas donné de refresh token : identité de ${session.user.id} figée jusqu'à sa reconnexion`);
+      console.warn(`[oauth] l'IdP n'a pas donné de refresh token : identité de ${getDisplayId(session.user)} figée jusqu'à sa reconnexion`);
     }
     return this.sealSession(session);
   }
@@ -49,7 +49,8 @@ export class IdpGateway {
     const { allowedUsers, allowedGroups } = this.options;
     if (!allowedUsers.length && !allowedGroups.length) return;
     const inGroup = (user.groups ?? []).some((group) => allowedGroups.includes(group));
-    if (!allowedUsers.includes(user.id) && !inGroup) throw new Error(`utilisateur ${user.id} non autorisé sur ce serveur`);
+    const listed = allowedUsers.includes(user.id) || (!!user.username && allowedUsers.includes(user.username));
+    if (!listed && !inGroup) throw new Error(`utilisateur ${getDisplayId(user)} non autorisé sur ce serveur`);
   }
 
   private sealSession(session: IdpSession): SignedInIdentity {

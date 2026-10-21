@@ -74,7 +74,7 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `OIDC_CLIENT_SECRET` | | Son secret ; sert aussi à chiffrer le refresh token de l'IdP en base |
 | `OIDC_SCOPES` | openid profile email | Scopes demandés à l'IdP |
 | `OIDC_GROUPS_CLAIM` | groups | Claim de `userinfo` qui porte les groupes |
-| `OIDC_ALLOWED_USERS` | | Qui peut se connecter, par identifiant (vide : tout le monde) |
+| `OIDC_ALLOWED_USERS` | | Qui peut se connecter, par `sub` ou username (vide : tout le monde) |
 | `OIDC_ALLOWED_GROUPS` | | Qui peut se connecter, par groupe |
 | `OAUTH_REDIRECT_ALLOWLIST` | Claude + boucle locale | Adresses de retour acceptées pour les clients DCR (`identite.md`) |
 | `AUTH_DEV_TOKENS` | | `id:jeton,…`, hors production seulement |
@@ -105,6 +105,11 @@ Base SQLite à chaud (mode WAL, cohérent même serveur lancé) :
 sqlite3 data/mcp-maison.db ".backup 'backup/mcp-maison-$(date +%F).db'"
 ```
 Sans `sqlite3` sur l'hôte : `docker compose stop && cp data/mcp-maison.db* backup/ && docker compose start`.
+
+Le schéma de la base évolue par **migrations numérotées** (`src/identity/oauth/migrations.ts`), jouées
+automatiquement au démarrage et notées dans la table `schema_version` (`[base] migration N appliquée` dans les logs).
+Sauvegarder la base avant une mise à jour. La migration 3 (identité par `sub`) efface les jetons existants :
+chacun reclique *Connect* une fois.
 
 La base ne contient aucun secret en clair : la copie ne donne accès à rien. Le journal, lui, dit qui a publié
 quoi : à garder comme un log applicatif. Il grossit sans fin : le faire tourner (`logrotate`, `copytruncate`).

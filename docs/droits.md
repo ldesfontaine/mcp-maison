@@ -40,7 +40,7 @@ everyone:                 # toute personne connectée
   - core:ping
   - core:whoami
 
-users:                    # par identifiant (User.id, voir whoami)
+users:                    # par sub (User.id) ou par username, voir whoami
   lucas: ["*"]
   bob: [gitlab:read]
 
@@ -52,6 +52,9 @@ groups:                   # par groupe de l'IdP (GitLab : chemin complet)
     - core:audit
 ```
 
+- **Préférer les groupes.** Ils sont gérés par l'IdP, comme les comptes. Une entrée `users` par **username**
+  suit le nom : si l'IdP laisse chacun changer son `preferred_username`, quelqu'un pourrait prendre celui d'un
+  autre. Une entrée par **sub** (l'`id` que montre `whoami`) est sûre mais illisible : à commenter.
 - Les droits **s'additionnent** : `everyone` + `users.<id>` + chaque groupe de la personne. Pas de refus explicite.
 - `*` donne tout ; `gitlab:*` donne toutes les actions du groupe `gitlab`.
 - Une entrée mal formée au démarrage bloque le démarrage avec sa position (`users.lucas.0`).

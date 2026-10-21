@@ -110,14 +110,15 @@ async function fetchUserinfo(userinfoEndpoint: string, accessToken: string, grou
   return mapClaimsToUser((await response.json()) as Record<string, unknown>, groupsClaim);
 }
 
-// preferred_username est lisible et sert dans permissions.yaml ; sub est le repli stable.
+// sub est attribué par l'IdP et ne change jamais : c'est l'identité. preferred_username, que la personne
+// peut parfois modifier elle-même, ne sert qu'à l'affichage et, au choix, dans permissions.yaml.
 function mapClaimsToUser(claims: Record<string, unknown>, groupsClaim: string): User {
   const readText = (key: string) => (typeof claims[key] === 'string' ? (claims[key] as string) : undefined);
-  const id = readText('preferred_username') ?? readText('sub');
-  if (!id) throw new Error('userinfo sans sub ni preferred_username');
+  const id = readText('sub');
+  if (!id) throw new Error('userinfo sans sub');
   const groups = Array.isArray(claims[groupsClaim]) ? (claims[groupsClaim] as unknown[]) : [];
   return {
-    id, name: readText('name'), email: readText('email'), provider: 'oidc',
+    id, username: readText('preferred_username'), name: readText('name'), email: readText('email'), provider: 'oidc',
     groups: groups.filter((group): group is string => typeof group === 'string')
   };
 }

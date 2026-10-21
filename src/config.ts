@@ -16,7 +16,9 @@ const coreEnv = z.object({
   HOST: z.string().default('0.0.0.0'),
   ALLOWED_HOSTS: z.string().optional(), // anti DNS rebinding : "mcp.example.com,localhost"
   MAX_BODY: z.string().default('10mb'),
-  TRUST_PROXY: z.string().optional(), // "1" derrière un reverse proxy
+  // Derrière un reverse proxy : nombre de proxys de confiance ("1"), ou true / false
+  TRUST_PROXY: z.string().regex(/^(\d+|true|false)$/, 'nombre de proxys (ex. 1), ou true / false').optional()
+    .transform((value) => (value === undefined ? undefined : /^\d+$/.test(value) ? Number(value) : value === 'true')),
 
   // --- Identité : OIDC (production) ---
   MCP_PUBLIC_URL: z.url().refine((url) => new URL(url).pathname === '/', 'origine seule, sans chemin (ex. https://mcp.example.com)')
@@ -97,9 +99,9 @@ export function dropEmptyValues(env: NodeJS.ProcessEnv): Record<string, string> 
   return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => !!entry[1]));
 }
 
-/** Valide l'environnement ; lève une erreur qui liste tout ce qui ne va pas, sans aucune valeur. */
-export function parseConfig(env: NodeJS.ProcessEnv): Config {
-  const parsed = schema.safeParse(dropEmptyValues(env));
+/** Valide l'environnement (déjà passé par dropEmptyValues) ; l'erreur liste tout ce qui ne va pas, sans aucune valeur. */
+export function parseConfig(env: Record<string, string>): Config {
+  const parsed = schema.safeParse(env);
   if (parsed.success) return parsed.data;
   const lines = parsed.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`);
   throw new Error(`Configuration invalide :\n${lines.join('\n')}\nVoir .env.example`);

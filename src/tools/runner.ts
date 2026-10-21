@@ -58,8 +58,10 @@ async function runTool(tool: Tool, args: Record<string, unknown>, user: User, de
     result = await tool.handler(args, ctx);
     if (result.isError) entry.error = extractText(result).slice(0, MAX_ERROR_LENGTH);
   } catch (error) {
+    // Le détail reste côté serveur (logs et journal) : Claude n'en reçoit qu'un résumé.
     entry.error = (error as Error).message;
-    result = replyError(`Erreur interne : ${entry.error}`);
+    console.error(`[${tool.name}] [${getDisplayId(user)}] erreur interne :`, error);
+    result = replyError('Erreur interne : l\'outil a échoué. Le détail est dans les logs du serveur.');
   }
   await deps.audit.write({
     ...entry, ok: !entry.error, result: Object.keys(notes).length ? notes : undefined, ms: Date.now() - started

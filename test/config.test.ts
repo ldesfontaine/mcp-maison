@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from '../src/config.js';
+import { dropEmptyValues, parseConfig } from '../src/config.js';
 import { gitlabConfig } from '../src/tools/gitlab/config.js';
 
 const GITLAB = {
@@ -23,6 +23,12 @@ describe('configuration', () => {
     expect(parseConfig(OIDC).oidc).toMatchObject({ issuer: OIDC.OIDC_ISSUER, scopes: 'openid profile email', groupsClaim: 'groups' });
   });
 
+  it('TRUST_PROXY : un nombre de proxys ou un booléen, rien d\'autre', () => {
+    expect(parseConfig({ ...DEV, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
+    expect(parseConfig({ ...DEV, TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true);
+    expect(() => parseConfig({ ...DEV, TRUST_PROXY: 'loopback, 10.0.0.0/8' })).toThrow(/TRUST_PROXY: nombre de proxys/);
+  });
+
   it('MCP_PUBLIC_URL : origine seule, sans chemin', () => {
     expect(() => parseConfig({ ...OIDC, MCP_PUBLIC_URL: 'https://mcp.example.com/mcp' })).toThrow(/MCP_PUBLIC_URL: origine seule/);
     expect(parseConfig({ ...OIDC, MCP_PUBLIC_URL: 'https://mcp.example.com/' }).oidc?.publicUrl).toBe('https://mcp.example.com/');
@@ -42,7 +48,7 @@ describe('configuration', () => {
   });
 
   it('une variable vide compte comme absente', () => {
-    expect(() => parseConfig({ AUTH_DEV_TOKENS: '' })).toThrow(/aucune identité configurée/);
+    expect(() => parseConfig(dropEmptyValues({ AUTH_DEV_TOKENS: '' }))).toThrow(/aucune identité configurée/);
   });
 
   it('valeurs d\'exemple refusées : jeton de dev, secret OIDC, token GitLab', () => {

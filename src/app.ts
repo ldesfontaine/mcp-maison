@@ -1,4 +1,4 @@
-import express, { type NextFunction, type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { AuditLog } from './audit/log.js';
@@ -31,7 +31,7 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
 
   const app = express();
   app.disable('x-powered-by');
-  if (config.TRUST_PROXY) app.set('trust proxy', /^\d+$/.test(config.TRUST_PROXY) ? Number(config.TRUST_PROXY) : config.TRUST_PROXY);
+  if (config.TRUST_PROXY !== undefined) app.set('trust proxy', config.TRUST_PROXY);
 
   // Avant la validation de Host : la sonde Docker et la supervision appellent 127.0.0.1, pas le nom public.
   // Pas d'authentification : des noms d'outils et de groupes, aucune valeur de configuration.
@@ -51,7 +51,8 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   });
   app.get('/audit', bearer, createAuditHandler(audit, authorizer));
   // Auth AVANT la lecture du corps : un anonyme ne fait pas parser 10 Mo.
-  app.use('/mcp', bearer, express.json({ limit: config.MAX_BODY }), mcp.router);
+  const allowedOrigins = config.oidc ? [new URL(config.oidc.publicUrl).origin] : [];
+  app.use('/mcp', rejectForeignOrigin(allowedOrigins), bearer, express.json({ limit: config.MAX_BODY }), mcp.router);
   app.use(sendJsonRpcError);
 
   // Deux temps pour l'arrêt (main.ts) : les sessions d'abord, la base une fois les requêtes terminées.
@@ -64,7 +65,22 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   return { app, config, tools, audit, closeSessions, closeStorage, close };
 }
 
-// Erreurs (ex. corps trop gros -> 413) au format JSON-RPC.
+/**
+ * Un navigateur envoie toujours Origin : s'il est présent, il doit être celui de MCP_PUBLIC_URL (une page web
+ * tierce ne peut pas piloter /mcp avec les droits de la personne). Absent (Claude, scripts) : accepté.
+ */
+function rejectForeignOrigin(allowedOrigins: string[]): RequestHandler {
+  return (req, res, next) => {
+    const origin = req.headers.origin;
+    if (!origin || allowedOrigins.includes(origin)) return next();
+    res.status(403).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Origin refusée' }, id: null });
+  };
+}
+
+// Erreurs au format JSON-RPC. 4xx (ex. corps trop gros -> 413) : le message tel quel ; 5xx : générique, détail en log.
 function sendJsonRpcError(error: { status?: number; message?: string }, _req: Request, res: Response, _next: NextFunction) {
-  res.status(error?.status ?? 500).json({ jsonrpc: '2.0', error: { code: -32000, message: error?.message ?? 'Internal server error' }, id: null });
+  const status = error?.status ?? 500;
+  if (status >= 500) console.error('[http] erreur interne :', error);
+  const message = status < 500 && error?.message ? error.message : 'Internal server error';
+  res.status(status).json({ jsonrpc: '2.0', error: { code: -32000, message }, id: null });
 }

@@ -50,7 +50,9 @@ labels:
 
 Puis dans `.env` :
 - `TRUST_PROXY=1` : l'adresse du client vient de `X-Forwarded-For` (limites de débit).
-- `ALLOWED_HOSTS=mcp.example.com` : refuse les autres `Host` (DNS rebinding).
+- `ALLOWED_HOSTS=mcp.example.com` : refuse les autres `Host` (DNS rebinding). `/health` répond quand même.
+- Une requête `/mcp` qui porte un en-tête `Origin` (un navigateur) n'est acceptée que s'il vaut l'origine de
+  `MCP_PUBLIC_URL`. Claude et les scripts n'en envoient pas.
 - `MCP_PUBLIC_URL=https://mcp.example.com` : sert aux métadonnées OAuth et au callback OIDC.
 
 Ne pas mettre d'authentification du proxy devant `/mcp`, `/.well-known/…`, `/register`, `/authorize`,
@@ -67,7 +69,7 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `HOST` | 0.0.0.0 | Adresse d'écoute |
 | `ALLOWED_HOSTS` | | Noms d'hôte acceptés (anti DNS rebinding) |
 | `MAX_BODY` | 10mb | Taille max d'une requête `/mcp` |
-| `TRUST_PROXY` | | Nombre de proxys de confiance devant le serveur |
+| `TRUST_PROXY` | | Nombre de proxys de confiance devant le serveur (ex. 1), ou `true` / `false` |
 | `MCP_PUBLIC_URL` | | URL publique de ce serveur, sans `/mcp` (OIDC) |
 | `OIDC_ISSUER` | | Issuer de l'IdP (`identite.md`) |
 | `OIDC_CLIENT_ID` | | Application déclarée chez l'IdP |

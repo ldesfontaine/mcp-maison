@@ -77,6 +77,7 @@ est écrite une fois dans les logs (avec sa position). Corriger le fichier suffi
 | `core:audit` | `audit_recent`, `GET /audit` |
 | `gitlab:read` | `gitlab_list_publications` |
 | `gitlab:publish` | `gitlab_publish` |
+| `opencloud:read` | les 11 outils `opencloud_*` (lecture seule ; `opencloud_container_logs` montre des journaux bruts, qui peuvent contenir un secret) |
 
 ## Outils visibles, refusés à l'appel
 

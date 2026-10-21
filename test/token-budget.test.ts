@@ -3,18 +3,32 @@ import type { Tool as ToolDefinition } from '@modelcontextprotocol/sdk/types.js'
 import { DEV_TOKENS, mcpClient, startMcp } from './helpers.js';
 
 // La définition de chaque outil est envoyée à Claude dans chaque conversation : voir docs/sobriete-tokens.md.
-const BUDGET = { description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 3_000 };
+const BUDGET = {
+  description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 3_000, group: 3_000
+};
+const OPENCLOUD_TOOLS = [
+  'opencloud_overview', 'opencloud_machines', 'opencloud_containers', 'opencloud_container_logs',
+  'opencloud_directory', 'opencloud_jobs', 'opencloud_probes', 'opencloud_status', 'opencloud_alerts',
+  'opencloud_audit', 'opencloud_actions'
+];
 
 let mcp: Awaited<ReturnType<typeof startMcp>>;
 let tools: ToolDefinition[];
 
 beforeAll(async () => {
-  mcp = await startMcp(); // core + gitlab, comme en production
+  // core + gitlab, comme en production, et chaque groupe optionnel
+  mcp = await startMcp({
+    TOOL_GROUPS: 'core,gitlab,opencloud', OPENCLOUD_URL: 'https://opencloud.invalid', OPENCLOUD_TOKEN: 'k'.repeat(20)
+  });
   const { client } = await mcpClient(mcp.url, DEV_TOKENS.lucas);
   tools = (await client.listTools()).tools;
   await client.close();
 });
 afterAll(() => mcp.stop());
+
+/** Le groupe d'un outil : son préfixe, core sinon. */
+const groupOf = (name: string) => /^(gitlab|opencloud)_/.exec(name)?.[1] ?? 'core';
+const sizeOf = (list: ToolDefinition[]) => JSON.stringify(list).length;
 
 const countSentences = (text: string) => text.match(/[.!?…](?=\s|$)/g)?.length ?? 0;
 
@@ -30,7 +44,7 @@ function collectParamDescriptions(schema: unknown, path = ''): [string, string][
 describe('budget de définition des outils', () => {
   it('tous les groupes de production sont mesurés', () => {
     expect(tools.map((tool) => tool.name)).toEqual(
-      ['ping', 'whoami', 'audit_recent', 'gitlab_publish', 'gitlab_list_publications']);
+      ['ping', 'whoami', 'audit_recent', 'gitlab_publish', 'gitlab_list_publications', ...OPENCLOUD_TOOLS]);
   });
 
   it(`description : ${BUDGET.description} caractères et ${BUDGET.sentences} phrases au plus`, () => {
@@ -56,9 +70,19 @@ describe('budget de définition des outils', () => {
     }
   });
 
-  it(`tools/list tient sous ${BUDGET.total} caractères de JSON`, () => {
-    const sizes = Object.fromEntries(tools.map((tool) => [tool.name, JSON.stringify(tool).length]));
-    expect(JSON.stringify(tools).length, JSON.stringify(sizes)).toBeLessThan(BUDGET.total);
+  it(`tools/list de production (core + gitlab) tient sous ${BUDGET.total} caractères de JSON`, () => {
+    const production = tools.filter((tool) => groupOf(tool.name) !== 'opencloud');
+    const sizes = Object.fromEntries(production.map((tool) => [tool.name, JSON.stringify(tool).length]));
+    expect(sizeOf(production), JSON.stringify(sizes)).toBeLessThan(BUDGET.total);
+  });
+
+  it(`chaque groupe : ${BUDGET.group} caractères de tools/list au plus`, () => {
+    for (const group of ['core', 'gitlab', 'opencloud']) {
+      const members = tools.filter((tool) => groupOf(tool.name) === group);
+      const sizes = Object.fromEntries(members.map((tool) => [tool.name, JSON.stringify(tool).length]));
+      expect(members.length, group).toBeGreaterThan(0);
+      expect(sizeOf(members), `${group} : ${JSON.stringify(sizes)}`).toBeLessThanOrEqual(BUDGET.group);
+    }
   });
 
   it('annotations justes : Claude s\'en sert pour confirmer, ou pas, et pour relancer, ou pas', () => {
@@ -67,7 +91,8 @@ describe('budget de définition des outils', () => {
     expect(annotations).toEqual({
       ping: local, whoami: local, audit_recent: local,
       gitlab_list_publications: { readOnlyHint: true, openWorldHint: true },
-      gitlab_publish: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
+      gitlab_publish: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+      ...Object.fromEntries(OPENCLOUD_TOOLS.map((name) => [name, local])) // lectures seules d'openCloud
     });
   });
 

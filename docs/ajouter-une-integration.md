@@ -5,6 +5,8 @@ Il ne se charge que s'il est dans `TOOL_GROUPS` **et** que sa config est complè
 
 ## Exemple fictif : un groupe `meteo`
 
+Exemple réel, plus complet : `src/tools/opencloud/` (client REST, délai, `Retry-After`, réponses filtrées).
+
 Un service HTTP imaginaire, `GET ${METEO_URL}/now?city=…` avec une clé d'API. Quatre fichiers :
 
 ```
@@ -90,7 +92,7 @@ X-MCP-Maison-User-Name: <nom affiché : name, sinon username, sinon id>
   événement d'audit quand l'acteur est le jeton de service). **Il fait confiance au jeton de service, pas à
   l'en-tête** : n'importe quel détenteur du jeton peut écrire ces en-têtes. Ils rendent le journal lisible, ils
   n'autorisent rien.
-- Le client `gitlab` les envoie déjà ; un nouveau client les met dans **chaque** requête, comme ci-dessus.
+- Les clients `gitlab` et `opencloud` les envoient ; un nouveau client les met dans **chaque** requête, comme ci-dessus.
 
 ## Le test
 

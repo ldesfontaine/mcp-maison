@@ -101,6 +101,9 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `GITLAB_TOKEN` | | Token de projet qui pousse (scope api) |
 | `GITLAB_BRANCH` | main | Branche publiée |
 | `GITLAB_PUBLISH_BASE_URL` | | URL où la CI publie `<slug>/` |
+| `OPENCLOUD_URL` | | Groupe opencloud : l'instance, https (http en boucle locale seulement) |
+| `OPENCLOUD_TOKEN` | | Jeton d'API d'openCloud, portée `read` |
+| `OPENCLOUD_TIMEOUT_MS` | 10000 | Délai d'un appel à openCloud |
 
 Une variable vide compte comme absente. Une config du cœur invalide arrête le serveur avec la liste de
 ce qui ne va pas (noms des variables, jamais leurs valeurs). Une config de groupe incomplète ignore

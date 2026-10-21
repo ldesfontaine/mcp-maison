@@ -14,6 +14,7 @@ Groupes d'outils fournis, activés par `TOOL_GROUPS` :
 | --- | --- |
 | `core` | `ping`, `whoami`, `audit_recent` |
 | `gitlab` | `gitlab_publish`, `gitlab_list_publications` : pages HTML statiques publiées sur demo.example.com via commit + CI ; un slug existant n'est remplacé qu'avec `overwrite` |
+| `opencloud` | `opencloud_overview`, `_machines`, `_containers`, `_container_logs`, `_directory`, `_jobs`, `_probes`, `_status`, `_alerts`, `_audit`, `_actions` : lecture d'openCloud par son API REST et un jeton d'API (`opencloud:read`) ; chargé seulement si `OPENCLOUD_URL` et `OPENCLOUD_TOKEN` sont renseignés |
 
 ```bash
 cp .env.example .env && npm install && npm run check   # lint + build + tests

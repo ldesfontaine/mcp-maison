@@ -126,3 +126,96 @@ export function fakeGitlab() {
   });
   return { app, commits, files, identities };
 }
+
+export const OPENCLOUD_TOKEN = 'ock_service-token-0123456789';
+
+/**
+ * Faux openCloud, côté API REST seulement (groupe d'outils opencloud) : des réponses figées, de la forme de
+ * internal/server/api_*.go (branche dev), avec ce qu'un outil ne doit jamais renvoyer (URL de ping, cible avec
+ * mot de passe, URL de webhook, extrait de journal). Bearer exigé ; `requests` garde chemin, requête et identité.
+ */
+export function fakeOpencloud() {
+  const app = express();
+  const requests: { path: string; query: Record<string, unknown>; user?: string; name?: string }[] = [];
+  const at = '2026-10-21T08:12:33.123456789Z';
+  app.use((req, res, next) => {
+    requests.push({
+      path: req.path, query: { ...req.query },
+      user: req.get('x-mcp-maison-user'), name: req.get('x-mcp-maison-user-name')
+    });
+    if (req.get('authorization') !== `Bearer ${OPENCLOUD_TOKEN}`) {
+      return void res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+  });
+  const container = {
+    id: 'c1', machine_id: 'local', machine_name: 'hote', kind: 'container', name: 'web', group: 'site',
+    container_id: 'abcdef', image: 'nginx:1.27', image_id: 'sha256:1', compose_service: 'web', compose_dir: '/srv',
+    compose_file: 'compose.yml', update_policy: 'watch', declared_service_id: '', image_check: null, state: 'exited',
+    exit_code: 137, oom_killed: true, killed: false, health: '', restart_count: 3, ports: [], network_mode: 'bridge',
+    privileged: false, networks: [{ network_id: 'n1', name: 'site_default', ip: '172.18.0.2', aliases: [] }],
+    depends_on: [], exposure: [], created_at: at, started_at: at, finished_at: at, first_seen_at: at,
+    last_seen_at: at, archived_at: null, current: null
+  };
+  const probe = {
+    id: 'p1', name: 'api', kind: 'http', target: 'https://admin:hunter2@api.example.com/health', machine_id: 'local',
+    machine_name: 'hote', machine_online: true, service_id: '', service_name: '', service_machine_name: '',
+    status: 'up', interval_seconds: 60, timeout_seconds: 10, failure_threshold: 3, recovery_threshold: 2,
+    method: 'GET', expected_status: '2xx', expected_body: '', follow_redirects: true, tls: true,
+    last_checked_at: at, last_duration_ms: 42, last_code: 200, last_reason: '', certificate: null, created_at: at
+  };
+  const job = {
+    id: 'j1', name: 'sauvegarde', machine_id: 'local', machine_name: 'hote', status: 'late', interval_seconds: 86400,
+    grace_seconds: 3600, last_ping_at: at, next_deadline_at: at, run_started_at: null, last_exit_code: 0,
+    last_duration_ms: 1200, created_at: at
+  };
+  const routes: Record<string, unknown> = {
+    '/api/counts': { machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } },
+    '/api/machines': {
+      machines: [{ id: 'local', name: 'hote', hostname: 'hote', address: '10.0.0.1', os: 'debian', arch: 'amd64',
+        online: true, last_seen_at: at, agent: null }],
+      pending: [{ id: 't1', name: 'nouvelle', masked: 'oc_ab…', expires_at: at, reenroll: false }]
+    },
+    '/api/containers': { containers: [container], engines: [] },
+    '/api/containers/c1': {
+      container, engine: null, directory: null,
+      transitions: [{ id: 1, at, action: 'die', previous_state: 'running', new_state: 'exited', previous_health: '',
+        new_health: '', exit_code: 137, oom_killed: true, killed: false, replayed: false,
+        snippet: 'DB_PASSWORD=fuite-dans-le-journal' }]
+    },
+    '/api/directory/services': { services: [] },
+    '/api/jobs/j1': {
+      job, ping_url: 'https://oc.example.com/ping/hb_secret-du-ping', url_local: false,
+      snippets: [{ key: 'curl', code: 'curl https://oc.example.com/ping/hb_secret-du-ping' }],
+      runs: [{ id: 1, started_at: at, completed_at: at, duration_ms: 1200, exit_code: 0, outcome: 'success',
+        payload: 'sortie brute du cron' }],
+      pings: []
+    },
+    '/api/probes': { probes: [probe], days: { p1: [{ day: '2026-10-20', total: 4, success: 3, degraded: 0,
+      duration_ms: 1 }] } },
+    '/api/alerts/channels': { channels: [{
+      id: 1, name: 'discord', url: 'https://discord.com/api/webhooks/1/jeton-du-hook', format: 'discord',
+      destination: 'ops@example.com', has_secret: false, min_severity: 'danger', notify_resolve: true,
+      enabled: true, plain: false, created_at: at
+    }] },
+    '/api/status/pages': { pages: [{ id: 's1', project_id: '', slug: 'public', title: 'Statut', announcement: '',
+      language: 'fr', public_url: 'https://oc.example.com/statut/public', created_at: at, updated_at: at }] },
+    '/api/status/incidents': { incidents: [] },
+    '/api/audit': { events: [], next_before: null },
+    '/api/actions': { runs: [] }
+  };
+  app.get('/api/containers/:id/logs', (req, res) => {
+    const tail = Number(req.query.tail);
+    const lines = Array.from({ length: tail }, (_, index) =>
+      ({ at, stream: index % 2 ? 'stderr' : 'stdout', text: `ligne ${index} ${'x'.repeat(150)}` }));
+    res.json({ lines });
+  });
+  app.get('/api/manifest/export', (_req, res) => void res.type('application/yaml').send('version: 1\nservices: []\n'));
+  app.get('/api/jobs/lent', () => { /* ne répond jamais : délai dépassé */ });
+  app.get('/api/probes/limite', (_req, res) => void res.status(429).set('Retry-After', '2').send('too many requests'));
+  app.get(/.*/, (req, res) => {
+    const body = routes[req.path];
+    return void (body ? res.json(body) : res.status(404).json({ error: 'not_found' }));
+  });
+  return { app, requests };
+}

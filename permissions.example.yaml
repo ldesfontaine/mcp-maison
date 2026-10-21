@@ -17,3 +17,5 @@ groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/
   exemple/lecture:
     - gitlab:read
     - core:audit     # audit_recent et GET /audit
+  exemple/exploitation:
+    - opencloud:read # opencloud_* : machines, conteneurs, journaux de conteneurs, sondes, alertes, audit

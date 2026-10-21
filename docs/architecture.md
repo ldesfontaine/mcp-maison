@@ -9,7 +9,7 @@ Il répond à trois questions, chacune dans son dossier :
 | Qui peut quoi ? | `src/authorization/` | Interface `Authorizer`, implémentée par `permissions.yaml` (relu à chaud) |
 | Qu'a-t-on fait ? | `src/audit/` | Journal JSON Lines, une ligne par appel, refus compris |
 
-Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core, gitlab).
+Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core, gitlab, opencloud).
 
 ## Les fichiers
 
@@ -44,7 +44,8 @@ src/tools/runner.ts            droit -> exécution -> journal
 src/tools/downstream.ts        en-têtes d'identité vers un service aval (X-MCP-Maison-User)
 src/tools/slug.ts              SLUG_PATTERN, la seule définition d'un slug
 src/tools/gitlab/files.ts      chemins et extensions acceptés à la publication
-src/tools/core|gitlab/
+src/tools/opencloud/           client REST d'openCloud (jeton, délai, Retry-After) et ses lectures filtrées
+src/tools/core|gitlab|opencloud/
 ```
 
 ## Connexion (OIDC)

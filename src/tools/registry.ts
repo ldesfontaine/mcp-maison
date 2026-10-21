@@ -1,9 +1,10 @@
 import { coreGroup } from './core/index.js';
 import { gitlabGroup } from './gitlab/index.js';
+import { opencloudGroup } from './opencloud/index.js';
 import type { Tool, ToolGroup } from './types.js';
 
 /** Les groupes connus. Ajouter une intégration = un dossier + une ligne ici. */
-export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup];
+export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup, opencloudGroup];
 
 export interface LoadedTools {
   tools: Tool[];

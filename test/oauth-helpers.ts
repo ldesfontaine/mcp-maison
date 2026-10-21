@@ -47,7 +47,8 @@ export async function connectLikeClaude(mcpUrl: string, idpOrigin: string, optio
 
   const secret: Record<string, string> = client.client_secret ? { client_secret: client.client_secret } : {};
   const exchange = (codeVerifier: string) => fetch(metadata.token_endpoint, form({
-    grant_type: 'authorization_code', code, code_verifier: codeVerifier, client_id: client.client_id, redirect_uri: CLAUDE_CALLBACK, ...secret
+    grant_type: 'authorization_code', code, code_verifier: codeVerifier, client_id: client.client_id,
+    redirect_uri: CLAUDE_CALLBACK, ...secret
   }));
   const refresh = (refreshToken: string, clientSecret = client.client_secret) => fetch(metadata.token_endpoint, form({
     grant_type: 'refresh_token', refresh_token: refreshToken, client_id: client.client_id,
@@ -61,6 +62,7 @@ export async function obtainTokens(mcpUrl: string, idpOrigin: string, options: F
   const flow = await connectLikeClaude(mcpUrl, idpOrigin, options);
   const response = await flow.exchange(flow.verifier);
   expect(response.status).toBe(200);
-  const tokens = (await response.json()) as { access_token: string; refresh_token: string; token_type: string; scope?: string };
+  type Tokens = { access_token: string; refresh_token: string; token_type: string; scope?: string };
+  const tokens = (await response.json()) as Tokens;
   return { ...flow, tokens };
 }

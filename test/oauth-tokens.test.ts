@@ -52,10 +52,11 @@ describe('jetons OAuth : règles de /token et /revoke', () => {
     const revoke = (token: string, clientId: string) =>
       fetch(`${mcp.url}/revoke`, form({ token, client_id: clientId }));
     expect((await revoke(owner.tokens.refresh_token, other.client.client_id)).status).toBe(200);
-    expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${owner.tokens.access_token}` } })).status).toBe(200);
+    const ownerAuth = { headers: { Authorization: `Bearer ${owner.tokens.access_token}` } };
+    expect((await fetch(`${mcp.url}/audit`, ownerAuth)).status).toBe(200);
 
     expect((await revoke(owner.tokens.refresh_token, owner.client.client_id)).status).toBe(200);
-    expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${owner.tokens.access_token}` } })).status).toBe(401);
+    expect((await fetch(`${mcp.url}/audit`, ownerAuth)).status).toBe(401);
   });
 
   it('purge : un client sans jeton depuis 30 jours est supprimé, un client actif gardé', () => {
@@ -66,7 +67,8 @@ describe('jetons OAuth : règles de /token et /revoke', () => {
     const user = { id: '7', provider: 'oidc' as const };
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.now() + 31 * 86_400_000);
-    store.saveToken('t', { kind: 'refresh', clientId: 'actif', familyId: 'f', user, scopes: [], expiresAt: Date.now() / 1000 + 3600 });
+    const expiresAt = Date.now() / 1000 + 3600;
+    store.saveToken('t', { kind: 'refresh', clientId: 'actif', familyId: 'f', user, scopes: [], expiresAt });
     store.purgeExpired();
     expect(store.findClient('ancien')).toBeUndefined();
     expect(store.findClient('actif')).toBeDefined();

@@ -5,7 +5,8 @@ import type { Authorizer } from './authorizer.js';
 
 // Une permission s'écrit "groupe:action" (ex. "gitlab:publish"). Dans permissions.yaml,
 // "*" donne tout, "gitlab:*" donne toutes les actions du groupe gitlab.
-const permissionList = z.array(z.string().regex(/^(\*|[a-z0-9_-]+:(\*|[a-z0-9_-]+))$/, 'forme "groupe:action", "groupe:*" ou "*"'));
+const PERMISSION_PATTERN = /^(\*|[a-z0-9_-]+:(\*|[a-z0-9_-]+))$/;
+const permissionList = z.array(z.string().regex(PERMISSION_PATTERN, 'forme "groupe:action", "groupe:*" ou "*"'));
 
 const rulesSchema = z.strictObject({
   everyone: permissionList.default([]), // tout utilisateur identifié

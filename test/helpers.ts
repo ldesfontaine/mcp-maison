@@ -35,7 +35,9 @@ export const oidcEnv = (idpUrl: string) => ({
  * <dataDir>/permissions.yaml (défaut : tout permis), pour ne jamais dépendre d'un permissions.yaml du poste.
  * `dataDir` permet de redémarrer sur la même base.
  */
-export async function startMcp(env: Record<string, string> = {}, options: { rules?: PermissionRules; dataDir?: string } = {}) {
+export async function startMcp(
+  env: Record<string, string> = {}, options: { rules?: PermissionRules; dataDir?: string } = {}
+) {
   const srv = await listen();
   const dataDir = options.dataDir ?? tempDir();
   const permissionsFile = join(dataDir, 'permissions.yaml');
@@ -43,9 +45,11 @@ export async function startMcp(env: Record<string, string> = {}, options: { rule
   const built = createApp({
     AUTH_DEV_TOKENS: Object.entries(DEV_TOKENS).map(([id, token]) => `${id}:${token}`).join(','),
     TOOL_GROUPS: 'core,gitlab',
-    GITLAB_URL: 'https://gitlab.invalid', GITLAB_PROJECT_ID: '42', GITLAB_TOKEN: 'server-token',
+    // Port 9 (discard) en boucle locale : connexion refusée tout de suite, sans résolution DNS.
+    GITLAB_URL: 'http://127.0.0.1:9', GITLAB_PROJECT_ID: '42', GITLAB_TOKEN: 'server-token',
     GITLAB_PUBLISH_BASE_URL: 'https://demo.invalid',
-    PERMISSIONS_FILE: permissionsFile, AUDIT_LOG_PATH: join(dataDir, 'audit.jsonl'), DATABASE_PATH: join(dataDir, 'mcp-maison.db'),
+    PERMISSIONS_FILE: permissionsFile, AUDIT_LOG_PATH: join(dataDir, 'audit.jsonl'),
+    DATABASE_PATH: join(dataDir, 'mcp-maison.db'),
     ...(env.OIDC_ISSUER ? { MCP_PUBLIC_URL: srv.url } : {}),
     ...env
   });

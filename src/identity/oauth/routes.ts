@@ -23,27 +23,33 @@ export function mountOAuth(app: Express, oidc: OidcConfig, databasePath: string)
   const oidcClient = createOidcClient({ ...oidc, callbackUrl: new URL('/oauth/callback', base).href });
   // Clé tirée du secret OIDC : une copie de la base seule ne déchiffre pas les refresh tokens de l'IdP.
   const sealingKey = deriveKey(oidc.clientSecret, 'idp-refresh');
-  const idp = new IdpGateway(oidcClient, { sealingKey, allowedUsers: oidc.allowedUsers, allowedGroups: oidc.allowedGroups });
+  const { allowedUsers, allowedGroups } = oidc;
+  const idp = new IdpGateway(oidcClient, { sealingKey, allowedUsers, allowedGroups });
   const server = new AuthorizationServer({ store, idp, resource, redirectAllowlist: oidc.redirectAllowlist });
 
   app.post(['/token', '/revoke'], express.urlencoded({ extended: false }), requireClientSecret(store));
   // Limites de débit relevées : tous les utilisateurs de claude.ai arrivent des mêmes IP Anthropic.
   // Secrets DCR sans échéance : sinon Claude perdrait la connexion au bout de 30 jours.
   app.use(mcpAuthRouter({
-    provider: server, issuerUrl: base, resourceServerUrl: resource, resourceName: RESOURCE_NAME, scopesSupported: SUPPORTED_SCOPES,
+    provider: server, issuerUrl: base, resourceServerUrl: resource, resourceName: RESOURCE_NAME,
+    scopesSupported: SUPPORTED_SCOPES,
     clientRegistrationOptions: { rateLimit: { max: 200 }, clientSecretExpirySeconds: 0 },
     tokenOptions: { rateLimit: { max: 500 } }
   }));
   // Certains clients sondent la métadonnée ressource à la racine avant le chemin /mcp.
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
-    res.json({ resource: resource.href, authorization_servers: [base.href], scopes_supported: SUPPORTED_SCOPES, resource_name: RESOURCE_NAME });
+    res.json({
+      resource: resource.href, authorization_servers: [base.href], scopes_supported: SUPPORTED_SCOPES,
+      resource_name: RESOURCE_NAME
+    });
   });
   app.get('/oauth/callback', async (req, res) => {
     try {
       res.redirect(302, await server.signIn.handleCallback(req.query as Record<string, string>));
     } catch (error) {
       console.warn(`[oauth] retour de l'IdP refusé : ${(error as Error).message}`);
-      res.status(400).type('text/plain').send('Connexion impossible : demande inconnue ou expirée. Recommencer depuis Claude.');
+      const message = 'Connexion impossible : demande inconnue ou expirée. Recommencer depuis Claude.';
+      res.status(400).type('text/plain').send(message);
     }
   });
 

@@ -33,7 +33,8 @@ export class IdpGateway {
     const session = await this.idp.signIn(code, codeVerifier);
     this.assertAllowed(session.user);
     if (!session.refreshToken) {
-      console.warn(`[oauth] l'IdP n'a pas donné de refresh token : identité de ${getDisplayId(session.user)} figée jusqu'à sa reconnexion`);
+      const who = getDisplayId(session.user);
+      console.warn(`[oauth] l'IdP n'a pas donné de refresh token : identité de ${who} figée jusqu'à sa reconnexion`);
     }
     return this.sealSession(session);
   }
@@ -65,11 +66,13 @@ export class IdpGateway {
     if (!allowedUsers.length && !allowedGroups.length) return;
     const inGroup = (user.groups ?? []).some((group) => allowedGroups.includes(group));
     const listed = allowedUsers.includes(user.id) || (!!user.username && allowedUsers.includes(user.username));
-    if (!listed && !inGroup) throw new IdentityRefusedError(`utilisateur ${getDisplayId(user)} non autorisé sur ce serveur`);
+    if (!listed && !inGroup) {
+      throw new IdentityRefusedError(`utilisateur ${getDisplayId(user)} non autorisé sur ce serveur`);
+    }
   }
 
   private sealSession(session: IdpSession): SignedInIdentity {
-    const sealedIdpRefresh = session.refreshToken ? sealSecret(session.refreshToken, this.options.sealingKey) : undefined;
-    return { user: session.user, sealedIdpRefresh };
+    const { user, refreshToken } = session;
+    return { user, sealedIdpRefresh: refreshToken ? sealSecret(refreshToken, this.options.sealingKey) : undefined };
   }
 }

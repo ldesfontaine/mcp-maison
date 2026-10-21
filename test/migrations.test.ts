@@ -9,7 +9,8 @@ const LATEST = MIGRATIONS.at(-1)!.version;
 const readVersion = (path: string) => {
   const db = new Database(path);
   const row = db.prepare('SELECT version FROM schema_version').get() as { version: number };
-  const columns = (db.prepare('PRAGMA table_info(oauth_tokens)').all() as { name: string }[]).map((column) => column.name);
+  const columnRows = db.prepare('PRAGMA table_info(oauth_tokens)').all() as { name: string }[];
+  const columns = columnRows.map((column) => column.name);
   const tokens = (db.prepare('SELECT COUNT(*) AS n FROM oauth_tokens').get() as { n: number }).n;
   db.close();
   return { version: row.version, columns, tokens };

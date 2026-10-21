@@ -15,8 +15,11 @@ afterEach(() => vi.unstubAllGlobals());
 describe('API GitLab', () => {
   it('envoie create/update selon les fichiers existants, en un seul commit', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json([{ path: 'acme/index.html', name: 'index.html', type: 'blob' }, { path: 'acme/assets', name: 'assets', type: 'tree' }]))
-      .mockResolvedValueOnce(json({ id: 'abc123', web_url: 'https://gitlab.example.com/web/demo/-/commit/abc123' }, 201));
+      .mockResolvedValueOnce(json([
+        { path: 'acme/index.html', name: 'index.html', type: 'blob' },
+        { path: 'acme/assets', name: 'assets', type: 'tree' }
+      ]))
+      .mockResolvedValueOnce(json({ id: 'abc123', web_url: 'https://gitlab.example.com/commit/abc123' }, 201));
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await publishFiles(config, 'acme', [
@@ -55,9 +58,12 @@ describe('API GitLab', () => {
   });
 
   it('auteur sans e-mail : "(via id)" dans le message, pas de author_name/author_email', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(json([])).mockResolvedValueOnce(json({ id: 'a1', web_url: 'u' }, 201));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json({ id: 'a1', web_url: 'u' }, 201));
     vi.stubGlobal('fetch', fetchMock);
-    await publishFiles(config, 'x2', [{ path: 'a.html', content: '' }], { message: 'v1', author: { id: 'bob', name: 'bob' } });
+    const author = { id: 'bob', name: 'bob' };
+    await publishFiles(config, 'x2', [{ path: 'a.html', content: '' }], { message: 'v1', author });
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(body.commit_message).toBe('v1 (via bob)');
     expect(body).not.toHaveProperty('author_email');
@@ -76,7 +82,9 @@ describe('API GitLab', () => {
   });
 
   it('remonte une erreur GitLab lisible', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json([])).mockResolvedValueOnce(new Response('{"message":"403 Forbidden"}', { status: 403 })));
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(new Response('{"message":"403 Forbidden"}', { status: 403 })));
     await expect(publishFiles(config, 'x1', [{ path: 'a.html', content: '' }])).rejects.toThrow(/GitLab commit 403/);
   });
 

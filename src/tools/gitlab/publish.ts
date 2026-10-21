@@ -31,7 +31,8 @@ export function createPublishTool(config: GitlabConfig) {
         .describe('Fichiers à publier'),
       message: z.string().max(500).optional().describe('Message de commit (optionnel)'),
       overwrite: z.boolean().default(false)
-        .describe('Remplacer un slug déjà publié. Faux par défaut ; vrai seulement après accord explicite de l\'utilisateur.')
+        .describe('Remplacer un slug déjà publié. Faux par défaut ; '
+          + 'vrai seulement après accord explicite de l\'utilisateur.')
     },
     permission: 'gitlab:publish',
     annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true },

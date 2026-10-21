@@ -19,7 +19,8 @@ describe('registre des groupes', () => {
 
     expect(loaded.tools.map((tool) => tool.name)).toEqual(['ping', 'whoami', 'audit_recent']);
     expect(loaded.skipped.map((skip) => skip.group)).toEqual(['gitlab', 'redmine']);
-    expect(loaded.skipped[0].reason).toMatch(/GITLAB_URL invalide.*GITLAB_PROJECT_ID manquante.*GITLAB_TOKEN manquante/);
+    expect(loaded.skipped[0].reason)
+      .toMatch(/GITLAB_URL invalide.*GITLAB_PROJECT_ID manquante.*GITLAB_TOKEN manquante/);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('groupe "gitlab" non chargé'));
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('groupe "redmine" non chargé : groupe inconnu'));
   });
@@ -28,7 +29,9 @@ describe('registre des groupes', () => {
     const rogue: ToolGroup = {
       name: 'demo',
       envKeys: [],
-      createTools: () => [defineTool({ name: 'demo_x', description: 'x', inputSchema: {}, permission: 'gitlab:publish', handler: () => replyText('x') })]
+      createTools: () => [defineTool({
+        name: 'demo_x', description: 'x', inputSchema: {}, permission: 'gitlab:publish', handler: () => replyText('x')
+      })]
     };
     expect(() => loadToolGroups(['demo'], {}, [rogue])).toThrow(/hors du groupe "demo"/);
   });

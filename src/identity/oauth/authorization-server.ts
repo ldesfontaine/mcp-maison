@@ -52,7 +52,9 @@ export class AuthorizationServer implements OAuthServerProvider {
   }
 
   /** Étape 3 : code (usage unique, PKCE déjà vérifié par le SDK) -> nouvelle famille de jetons. */
-  async exchangeAuthorizationCode(client: OAuthClientInformationFull, code: string, _verifier?: string, redirectUri?: string) {
+  async exchangeAuthorizationCode(
+    client: OAuthClientInformationFull, code: string, _verifier?: string, redirectUri?: string
+  ) {
     if (!redirectUri) throw new InvalidRequestError('redirect_uri requis');
     const stored = this.store.takeCode(code);
     if (!stored || stored.clientId !== client.client_id || stored.expiresAt < getEpochSeconds()) {
@@ -69,10 +71,13 @@ export class AuthorizationServer implements OAuthServerProvider {
    */
   async exchangeRefreshToken(client: OAuthClientInformationFull, refreshToken: string, scopes?: string[]) {
     const stored = this.store.findToken(refreshToken);
-    if (!stored || stored.kind !== 'refresh' || stored.clientId !== client.client_id || stored.expiresAt < getEpochSeconds()) {
+    if (!stored || stored.kind !== 'refresh' || stored.clientId !== client.client_id
+      || stored.expiresAt < getEpochSeconds()) {
       throw new InvalidGrantError('refresh token invalide');
     }
-    if (scopes?.some((scope) => !stored.scopes.includes(scope))) throw new InvalidScopeError('scope au-delà de celui d\'origine');
+    if (scopes?.some((scope) => !stored.scopes.includes(scope))) {
+      throw new InvalidScopeError('scope au-delà de celui d\'origine');
+    }
     if (stored.usedAt) this.revokeReplayedFamily(stored);
     const identity = await this.renewIdentity(stored);
     if (!this.store.markRefreshUsed(refreshToken)) this.revokeReplayedFamily(stored); // usage concurrent
@@ -81,11 +86,11 @@ export class AuthorizationServer implements OAuthServerProvider {
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     const stored = this.store.findToken(token);
-    if (!stored || stored.kind !== 'access' || stored.expiresAt < getEpochSeconds()) throw new InvalidTokenError('token invalide ou expiré');
-    return {
-      token, clientId: stored.clientId, scopes: stored.scopes, expiresAt: stored.expiresAt, resource: this.options.resource,
-      extra: { user: stored.user }
-    };
+    if (!stored || stored.kind !== 'access' || stored.expiresAt < getEpochSeconds()) {
+      throw new InvalidTokenError('token invalide ou expiré');
+    }
+    const { clientId, scopes, expiresAt, user } = stored;
+    return { token, clientId, scopes, expiresAt, resource: this.options.resource, extra: { user } };
   }
 
   /** Révoquer un jeton (accès ou refresh) coupe toute sa famille, mais seulement pour le client qui l'a reçue. */
@@ -121,12 +126,15 @@ export class AuthorizationServer implements OAuthServerProvider {
     }
   }
 
-  private issueTokens(clientId: string, { user, sealedIdpRefresh }: SignedInIdentity, scopes: string[], familyId: string): OAuthTokens {
+  private issueTokens(
+    clientId: string, { user, sealedIdpRefresh }: SignedInIdentity, scopes: string[], familyId: string
+  ): OAuthTokens {
     const accessToken = generateSecret();
     const refreshToken = generateSecret();
     const common = { clientId, familyId, user, scopes };
     this.store.saveToken(accessToken, { ...common, kind: 'access', expiresAt: getEpochSeconds() + ACCESS_TTL });
-    this.store.saveToken(refreshToken, { ...common, kind: 'refresh', sealedIdpRefresh, expiresAt: getEpochSeconds() + REFRESH_TTL });
+    const refreshExpiresAt = getEpochSeconds() + REFRESH_TTL;
+    this.store.saveToken(refreshToken, { ...common, kind: 'refresh', sealedIdpRefresh, expiresAt: refreshExpiresAt });
     return {
       access_token: accessToken, token_type: 'Bearer', expires_in: ACCESS_TTL, refresh_token: refreshToken,
       scope: scopes.join(' ') || undefined

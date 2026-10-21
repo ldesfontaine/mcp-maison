@@ -23,7 +23,8 @@ export function buildMcpServer(deps: RunnerDependencies): McpServer {
   for (const tool of deps.tools) {
     server.registerTool(
       tool.name,
-      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
+      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema,
+        annotations: tool.annotations },
       (args: Record<string, unknown>, extra: Extra) => runTool(tool, args ?? {}, getUserFromAuth(extra.authInfo), deps)
     );
   }
@@ -31,10 +32,13 @@ export function buildMcpServer(deps: RunnerDependencies): McpServer {
 }
 
 /** Vérifie le droit, exécute, mesure, journalise. Un refus est journalisé comme un appel. */
-async function runTool(tool: Tool, args: Record<string, unknown>, user: User, deps: RunnerDependencies): Promise<CallToolResult> {
+async function runTool(
+  tool: Tool, args: Record<string, unknown>, user: User, deps: RunnerDependencies
+): Promise<CallToolResult> {
   const started = Date.now();
   const entry: AuditEntry = {
-    ts: new Date(started).toISOString(), user: user.id, username: user.username, userName: user.name, provider: user.provider, tool: tool.name,
+    ts: new Date(started).toISOString(), user: user.id, username: user.username, userName: user.name,
+    provider: user.provider, tool: tool.name,
     args: (tool.auditArgs ?? summarizeArgs)(args), ok: false, ms: 0
   };
 

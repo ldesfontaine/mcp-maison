@@ -18,8 +18,12 @@ export function parseDevTokens(spec: string): Map<string, User> {
     const separator = entry.indexOf(':');
     const id = entry.slice(0, separator);
     const token = entry.slice(separator + 1);
-    if (separator < 1 || !/^[A-Za-z0-9._-]+$/.test(id)) throw new Error(`entrée n°${index + 1} : format identifiant:jeton attendu`);
-    if (token.length < MIN_TOKEN_LENGTH) throw new Error(`jeton de "${id}" trop court (${MIN_TOKEN_LENGTH} caractères minimum)`);
+    if (separator < 1 || !/^[A-Za-z0-9._-]+$/.test(id)) {
+      throw new Error(`entrée n°${index + 1} : format identifiant:jeton attendu`);
+    }
+    if (token.length < MIN_TOKEN_LENGTH) {
+      throw new Error(`jeton de "${id}" trop court (${MIN_TOKEN_LENGTH} caractères minimum)`);
+    }
     if (isPlaceholder(token)) throw new Error(`jeton de "${id}" : valeur d'exemple à remplacer (openssl rand -hex 32)`);
     if (usersByHash.has(hashSecret(token))) throw new Error(`jeton en double (identifiant "${id}")`);
     usersByHash.set(hashSecret(token), { id, username: id, name: id, provider: 'dev-token' });
@@ -29,7 +33,9 @@ export function parseDevTokens(spec: string): Map<string, User> {
 }
 
 /** Vérificateur Bearer : jetons de développement d'abord, puis le serveur OAuth s'il est monté. */
-export function createBearerVerifier(devUsers: Map<string, User>, oauth?: OAuthTokenVerifier, resource?: URL): OAuthTokenVerifier {
+export function createBearerVerifier(
+  devUsers: Map<string, User>, oauth?: OAuthTokenVerifier, resource?: URL
+): OAuthTokenVerifier {
   return {
     async verifyAccessToken(token: string): Promise<AuthInfo> {
       const user = devUsers.get(hashSecret(token));

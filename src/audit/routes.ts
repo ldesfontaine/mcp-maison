@@ -10,7 +10,8 @@ export function createAuditHandler(audit: AuditLog, authorizer: Authorizer): Req
   return async (req, res) => {
     const user = getUserFromAuth(req.auth);
     if (!authorizer.can(user, AUDIT_PERMISSION)) {
-      return void res.status(403).json({ error: `permission ${AUDIT_PERMISSION} manquante pour ${getDisplayId(user)}` });
+      const error = `permission ${AUDIT_PERMISSION} manquante pour ${getDisplayId(user)}`;
+      return void res.status(403).json({ error });
     }
     const query = req.query as Record<string, string | undefined>;
     const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 1000);

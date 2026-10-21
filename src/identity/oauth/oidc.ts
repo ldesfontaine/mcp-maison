@@ -24,7 +24,9 @@ export interface OidcClient {
   refreshSession(refreshToken: string): Promise<IdpSession>;
 }
 
-interface Discovery { issuer: string; authorization_endpoint: string; token_endpoint: string; userinfo_endpoint: string }
+interface Discovery {
+  issuer: string; authorization_endpoint: string; token_endpoint: string; userinfo_endpoint: string;
+}
 
 const trimSlashes = (url: string) => url.replace(/\/+$/, '');
 
@@ -53,8 +55,10 @@ export function createOidcClient(settings: OidcSettings): OidcClient {
 
     // Relu à chaque refresh de Claude : groupes à jour, et un compte bloqué chez l'IdP est coupé.
     async refreshSession(refreshToken) {
-      const session = await fetchSession(await discover(), settings, { grant_type: 'refresh_token', refresh_token: refreshToken });
-      return { ...session, refreshToken: session.refreshToken ?? refreshToken }; // IdP sans rotation : on garde l'ancien
+      const grant = { grant_type: 'refresh_token', refresh_token: refreshToken };
+      const session = await fetchSession(await discover(), settings, grant);
+      // IdP sans rotation : il ne renvoie pas de nouveau refresh token, on garde l'ancien.
+      return { ...session, refreshToken: session.refreshToken ?? refreshToken };
     }
   };
 }
@@ -87,7 +91,9 @@ async function fetchDiscovery(issuer: string): Promise<Discovery> {
 }
 
 /** token_endpoint puis userinfo. L'access token de l'IdP sert à lire userinfo, puis il est oublié. */
-async function fetchSession(discovery: Discovery, settings: OidcSettings, grant: Record<string, string>): Promise<IdpSession> {
+async function fetchSession(
+  discovery: Discovery, settings: OidcSettings, grant: Record<string, string>
+): Promise<IdpSession> {
   const tokens = await requestTokens(discovery.token_endpoint, settings, grant);
   const user = await fetchUserinfo(discovery.userinfo_endpoint, tokens.access_token, settings.groupsClaim);
   return { user, refreshToken: tokens.refresh_token };

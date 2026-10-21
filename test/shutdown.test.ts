@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { DEV_TOKENS, listen, tempDir } from './helpers.js';
 
 const HEADERS = {
-  Authorization: `Bearer ${DEV_TOKENS.lucas}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream'
+  Authorization: `Bearer ${DEV_TOKENS.lucas}`, 'Content-Type': 'application/json',
+  Accept: 'application/json, text/event-stream'
 };
 
 /** Un port libre : on écoute sur 0, on note le port, on referme. */
@@ -38,7 +39,8 @@ describe('arrêt du processus (main.ts)', () => {
     }) });
     const sessionId = init.headers.get('mcp-session-id')!;
     // Flux serveur -> client laissé ouvert : c'est ce qui empêcherait un arrêt naïf de finir.
-    const stream = await fetch(url, { headers: { ...HEADERS, 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' } });
+    const streamHeaders = { ...HEADERS, 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' };
+    const stream = await fetch(url, { headers: streamHeaders });
     expect(stream.status).toBe(200);
 
     const started = Date.now();

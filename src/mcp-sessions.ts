@@ -25,7 +25,9 @@ export function createMcpSessions(newServer: () => McpServer, limits: SessionLim
   const sessions = new Map<string, Session>();
   const idleTimer = setInterval(() => {
     const cutoff = Date.now() - IDLE_MS;
-    for (const session of sessions.values()) if (session.lastActive < cutoff) session.transport.close().catch(console.error);
+    for (const session of sessions.values()) {
+      if (session.lastActive < cutoff) session.transport.close().catch(console.error);
+    }
   }, 60_000);
   idleTimer.unref();
 
@@ -77,7 +79,8 @@ export function createMcpSessions(newServer: () => McpServer, limits: SessionLim
   // GET = flux SSE serveur -> client ; DELETE = fin de session. Les deux exigent une session.
   const requireSession = async (req: Request, res: Response) => {
     const session = findOwnSession(req);
-    if (!session) return void sendRpcError(res, req.headers['mcp-session-id'] ? 404 : 400, 'Missing or unknown session');
+    const status = req.headers['mcp-session-id'] ? 404 : 400;
+    if (!session) return void sendRpcError(res, status, 'Missing or unknown session');
     await session.transport.handleRequest(req, res);
   };
   router.get('/', requireSession);

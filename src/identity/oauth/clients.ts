@@ -43,8 +43,11 @@ export function requireClientSecret(store: OAuthStore): RequestHandler {
     const { client_id: clientId, client_secret: secret } = (req.body ?? {}) as Record<string, unknown>;
     const client = typeof clientId === 'string' ? store.findClient(clientId) : undefined;
     if (!client?.secretHash) return next();
-    const matches = typeof secret === 'string' && timingSafeEqual(Buffer.from(hashSecret(secret)), Buffer.from(client.secretHash));
-    if (!matches) return void res.status(401).json({ error: 'invalid_client', error_description: 'client_secret invalide' });
+    const matches = typeof secret === 'string'
+      && timingSafeEqual(Buffer.from(hashSecret(secret)), Buffer.from(client.secretHash));
+    if (!matches) {
+      return void res.status(401).json({ error: 'invalid_client', error_description: 'client_secret invalide' });
+    }
     next();
   };
 }

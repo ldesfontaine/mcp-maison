@@ -8,7 +8,8 @@ const readKeys = [...new Set([...CORE_ENV_KEYS, ...AVAILABLE_GROUPS.flatMap((gro
 
 const listAssignedKeys = (text: string) => [...text.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]).sort();
 // `NOM_DE_VARIABLE` ou `NOM=valeur` entre backticks (au moins un "_", pour ne pas prendre S256 ou GET).
-const listCitedKeys = (text: string) => [...text.matchAll(/`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?:=[^`]*)?`/g)].map((match) => match[1]);
+const CITED_KEY = /`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?:=[^`]*)?`/g;
+const listCitedKeys = (text: string) => [...text.matchAll(CITED_KEY)].map((match) => match[1]);
 const readDoc = (path: string) => readFileSync(path, 'utf8');
 
 describe('variables d\'environnement documentées', () => {

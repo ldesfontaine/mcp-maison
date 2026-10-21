@@ -14,7 +14,10 @@ const INITIALIZE = JSON.stringify({
 });
 const postMcp = (url: string, headers: Record<string, string> = {}) => fetch(`${url}/mcp`, {
   method: 'POST', body: INITIALIZE,
-  headers: { Authorization: `Bearer ${DEV_TOKENS.lucas}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...headers }
+  headers: {
+    Authorization: `Bearer ${DEV_TOKENS.lucas}`, 'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream', ...headers
+  }
 });
 
 let idpServer: Awaited<ReturnType<typeof listen>>;

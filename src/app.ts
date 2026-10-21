@@ -78,7 +78,9 @@ function rejectForeignOrigin(allowedOrigins: string[]): RequestHandler {
 }
 
 // Erreurs au format JSON-RPC. 4xx (ex. corps trop gros -> 413) : le message tel quel ; 5xx : générique, détail en log.
-function sendJsonRpcError(error: { status?: number; message?: string }, _req: Request, res: Response, _next: NextFunction) {
+type HttpError = { status?: number; message?: string };
+
+function sendJsonRpcError(error: HttpError, _req: Request, res: Response, _next: NextFunction) {
   const status = error?.status ?? 500;
   if (status >= 500) console.error('[http] erreur interne :', error);
   const message = status < 500 && error?.message ? error.message : 'Internal server error';

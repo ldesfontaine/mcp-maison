@@ -39,14 +39,26 @@ mcp.example.com {
 }
 ```
 
-Traefik (labels sur le service) :
+Traefik tourne lui-même dans Docker : il joint le conteneur par un **réseau Docker partagé**, pas par le port
+publié sur `127.0.0.1`. Dans `docker-compose.yml`, retirer `ports`, puis :
 ```yaml
-labels:
-  - traefik.enable=true
-  - traefik.http.routers.mcp.rule=Host(`mcp.example.com`)
-  - traefik.http.routers.mcp.tls.certresolver=letsencrypt
-  - traefik.http.services.mcp.loadbalancer.server.port=3000
+services:
+  mcp:
+    # … le reste comme dans docker-compose.yml
+    networks: [traefik]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik          # le réseau à utiliser si le conteneur en a plusieurs
+      - traefik.http.routers.mcp.rule=Host(`mcp.example.com`)
+      - traefik.http.routers.mcp.entrypoints=websecure
+      - traefik.http.routers.mcp.tls.certresolver=letsencrypt
+      - traefik.http.services.mcp.loadbalancer.server.port=3000
+
+networks:
+  traefik:
+    external: true                              # celui de Traefik (docker network create traefik)
 ```
+Les noms `traefik`, `websecure` et `letsencrypt` sont ceux de la configuration de Traefik : les adapter.
 
 Puis dans `.env` :
 - `TRUST_PROXY=1` : l'adresse du client vient de `X-Forwarded-For` (limites de débit).

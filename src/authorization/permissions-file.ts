@@ -30,7 +30,8 @@ export class PermissionsFileAuthorizer implements Authorizer {
 
   constructor(private readonly path: string) {
     this.mtimeMs = statSync(path).mtimeMs;
-    this.rules = parsePermissionRules(readFileSync(path, 'utf8'), path); // invalide au démarrage : on refuse de démarrer
+    // Invalide au démarrage : on refuse de démarrer.
+    this.rules = parsePermissionRules(readFileSync(path, 'utf8'), path);
   }
 
   can(user: User, permission: string): boolean {

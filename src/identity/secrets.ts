@@ -7,7 +7,8 @@ export const hashSecret = (value: string) => createHash('sha256').update(value).
 export const generateSecret = () => randomBytes(32).toString('base64url');
 
 /** Clé AES-256 dérivée d'un secret de configuration, distincte pour chaque usage. */
-export const deriveKey = (secret: string, purpose: string) => createHash('sha256').update(`mcp-maison:${purpose}:${secret}`).digest();
+export const deriveKey = (secret: string, purpose: string) =>
+  createHash('sha256').update(`mcp-maison:${purpose}:${secret}`).digest();
 
 /** Chiffre (AES-256-GCM) un secret qu'il faudra relire tel quel, ex. le refresh token de l'IdP. */
 export function sealSecret(plain: string, key: Buffer): string {

@@ -47,13 +47,16 @@ export interface ToolGroup {
 export const defineTool = <S extends z.ZodRawShape>(tool: Tool<S>): Tool<S> => tool;
 
 export const replyText = (message: string): CallToolResult => ({ content: [{ type: 'text', text: message }] });
-export const replyError = (message: string): CallToolResult => ({ content: [{ type: 'text', text: message }], isError: true });
+export const replyError = (message: string): CallToolResult =>
+  ({ content: [{ type: 'text', text: message }], isError: true });
 
 /**
  * Prépare la config d'un groupe à partir du schéma de ses variables : les clés à déclarer dans ToolGroup.envKeys,
  * et un parseur dont l'erreur liste les variables en cause, sans leurs valeurs.
  */
-export function defineGroupConfig<E extends z.ZodRawShape, T>(variables: E, toConfig: (env: z.infer<z.ZodObject<E>>) => T) {
+export function defineGroupConfig<E extends z.ZodRawShape, T>(
+  variables: E, toConfig: (env: z.infer<z.ZodObject<E>>) => T
+) {
   const schema = z.object(variables);
   return {
     envKeys: Object.keys(variables),

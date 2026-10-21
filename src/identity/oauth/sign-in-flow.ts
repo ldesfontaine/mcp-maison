@@ -23,13 +23,19 @@ export class SignInFlow {
 
   /** Étape 1 : on garde la demande de Claude (scopes compris) et on redirige vers l'IdP. */
   async redirectToIdp(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response) {
-    if (params.resource && !isSameUrl(params.resource.href, this.resource.href)) throw new InvalidTargetError('resource inconnue');
+    if (params.resource && !isSameUrl(params.resource.href, this.resource.href)) {
+      throw new InvalidTargetError('resource inconnue');
+    }
     const scopes = params.scopes ?? [];
-    if (scopes.some((scope) => !SUPPORTED_SCOPES.includes(scope))) throw new InvalidScopeError('scope non pris en charge');
+    if (scopes.some((scope) => !SUPPORTED_SCOPES.includes(scope))) {
+      throw new InvalidScopeError('scope non pris en charge');
+    }
     const state = generateSecret();
     const upstreamVerifier = generateSecret();
+    // La demande de Claude, avec son propre state et son propre challenge PKCE, à lui rendre au retour.
     const request = {
-      clientId: client.client_id, redirectUri: params.redirectUri, state: params.state, codeChallenge: params.codeChallenge, scopes
+      clientId: client.client_id, redirectUri: params.redirectUri, state: params.state,
+      codeChallenge: params.codeChallenge, scopes
     };
     this.store.savePending(state, request, upstreamVerifier, getEpochSeconds() + PENDING_TTL);
     const codeChallenge = createHash('sha256').update(upstreamVerifier).digest('base64url');
@@ -47,7 +53,9 @@ export class SignInFlow {
     const back = new URL(request.redirectUri);
     if (request.state) back.searchParams.set('state', request.state);
     try {
-      if (query.error || !query.code) throw new Error(`l'IdP n'a pas rendu de code (${query.error ?? 'code manquant'})`);
+      if (query.error || !query.code) {
+        throw new Error(`l'IdP n'a pas rendu de code (${query.error ?? 'code manquant'})`);
+      }
       const identity = await this.idp.signIn(query.code, upstreamVerifier);
       const code = generateSecret();
       this.store.saveCode(code, {

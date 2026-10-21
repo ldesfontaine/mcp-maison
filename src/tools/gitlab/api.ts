@@ -56,7 +56,9 @@ async function callProjectApi(config: GitlabConfig, path: string, init: RequestI
 
 /** Parcourt l'arbre du dépôt (pagination keyset). Dossier inexistant (404) = liste vide. */
 async function listTree(config: GitlabConfig, dir: string, recursive: boolean): Promise<TreeItem[]> {
-  const query = new URLSearchParams({ ref: config.branch, recursive: String(recursive), per_page: '100', pagination: 'keyset' });
+  const query = new URLSearchParams({
+    ref: config.branch, recursive: String(recursive), per_page: '100', pagination: 'keyset'
+  });
   if (dir) query.set('path', dir);
   const items: TreeItem[] = [];
   let next: string | undefined = `/repository/tree?${query}`;

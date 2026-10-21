@@ -40,12 +40,15 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
     const origin = `http://${req.headers.host}`;
     res.json({
       issuer: options.announcedIssuer?.(`${origin}/realms/test`) ?? `${origin}/realms/test`,
-      authorization_endpoint: `${origin}/auth`, token_endpoint: `${origin}/token`, userinfo_endpoint: `${origin}/userinfo`
+      authorization_endpoint: `${origin}/auth`, token_endpoint: `${origin}/token`,
+      userinfo_endpoint: `${origin}/userinfo`
     });
   });
   app.get('/auth', (req, res) => {
     const query = req.query as Record<string, string>;
-    if (query.client_id !== IDP_CLIENT.id || query.code_challenge_method !== 'S256' || query.scope !== 'openid profile email') {
+    const expected = query.client_id === IDP_CLIENT.id && query.code_challenge_method === 'S256'
+      && query.scope === 'openid profile email';
+    if (!expected) {
       return void res.status(400).send('bad authorize request');
     }
     const code = generateCode();
@@ -97,9 +100,11 @@ export function fakeGitlab() {
   });
   app.get('/api/v4/projects/:id/repository/commits', (req, res) => {
     const dir = String(req.query.path ?? '');
-    const touching = commits.filter((commit) => commit.actions.some((a: { file_path: string }) => a.file_path.startsWith(`${dir}/`)));
+    const isInDir = (action: { file_path: string }) => action.file_path.startsWith(`${dir}/`);
+    const touching = commits.filter((commit) => commit.actions.some(isInDir));
     res.json(touching.reverse().slice(0, 1).map((commit) => ({
-      author_name: commit.author_name ?? 'Compte du token', committed_date: '2026-10-20T09:30:00Z', web_url: commit.web_url
+      author_name: commit.author_name ?? 'Compte du token', committed_date: '2026-10-20T09:30:00Z',
+      web_url: commit.web_url
     })));
   });
   app.post('/api/v4/projects/:id/repository/commits', (req, res) => {

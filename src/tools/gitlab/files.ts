@@ -17,7 +17,7 @@ export const safePath = z
   .min(1)
   .max(200)
   .regex(/^[A-Za-z0-9._\-/]+$/, 'caractères autorisés : A-Z a-z 0-9 . _ - /')
-  .refine((path) => !path.startsWith('/') && !path.split('/').some((part) => part === '' || part === '.' || part === '..'), {
+  .refine((path) => !path.startsWith('/') && !path.split('/').some((part) => ['', '.', '..'].includes(part)), {
     message: 'chemin relatif attendu, sans segment vide, "." ou ".."'
   })
   .refine((path) => !path.split('/').some((part) => part.startsWith('.')), {

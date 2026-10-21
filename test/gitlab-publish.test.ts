@@ -17,11 +17,12 @@ const publish = (args: Record<string, unknown>) => callTool(mcp.url, DEV_TOKENS.
 const page = (path = 'index.html') => [{ path, content: '<h1>x</h1>' }];
 
 describe('gitlab_publish', () => {
-  it('un slug déjà publié est refusé sans overwrite, avec l\'auteur de la dernière publication ; accepté avec', async () => {
+  it('slug déjà publié : refusé sans overwrite (avec le dernier auteur), accepté avec', async () => {
     expect((await publish({ slug: 'acme', files: page() })).isError).toBeFalsy();
     const refused = await publish({ slug: 'acme', files: page('v2.html') });
     expect(refused.isError).toBe(true);
-    expect(extractText(refused)).toMatch(/« acme » est déjà publié : dernière publication par Compte du token le 2026-10-20/);
+    expect(extractText(refused)).toContain('« acme » est déjà publié');
+    expect(extractText(refused)).toContain('dernière publication par Compte du token le 2026-10-20');
     expect(extractText(refused)).toContain('overwrite: true');
     expect(gitlab.commits).toHaveLength(1);
 
@@ -45,7 +46,8 @@ describe('gitlab_publish', () => {
   });
 
   it('les extensions de la liste passent, en minuscules comme en majuscules', async () => {
-    const files = ['index.html', 'app.mjs', 'logo.SVG', 'fonts/inter.woff2', 'site.webmanifest'].map((path) => ({ path, content: 'x' }));
+    const paths = ['index.html', 'app.mjs', 'logo.SVG', 'fonts/inter.woff2', 'site.webmanifest'];
+    const files = paths.map((path) => ({ path, content: 'x' }));
     expect((await publish({ slug: 'ok-ext', files })).isError).toBeFalsy();
   });
 });

@@ -20,7 +20,8 @@ describe('configuration', () => {
   it('OIDC commencé mais incomplet => erreur qui liste ce qui manque', () => {
     expect(() => parseConfig({ OIDC_ISSUER: OIDC.OIDC_ISSUER }))
       .toThrow(/MCP_PUBLIC_URL[\s\S]*OIDC_CLIENT_ID[\s\S]*OIDC_CLIENT_SECRET/);
-    expect(parseConfig(OIDC).oidc).toMatchObject({ issuer: OIDC.OIDC_ISSUER, scopes: 'openid profile email', groupsClaim: 'groups' });
+    expect(parseConfig(OIDC).oidc)
+      .toMatchObject({ issuer: OIDC.OIDC_ISSUER, scopes: 'openid profile email', groupsClaim: 'groups' });
   });
 
   it('TRUST_PROXY : un nombre de proxys ou un booléen, rien d\'autre', () => {
@@ -30,18 +31,21 @@ describe('configuration', () => {
   });
 
   it('MCP_PUBLIC_URL : origine seule, sans chemin', () => {
-    expect(() => parseConfig({ ...OIDC, MCP_PUBLIC_URL: 'https://mcp.example.com/mcp' })).toThrow(/MCP_PUBLIC_URL: origine seule/);
-    expect(parseConfig({ ...OIDC, MCP_PUBLIC_URL: 'https://mcp.example.com/' }).oidc?.publicUrl).toBe('https://mcp.example.com/');
+    const withUrl = (url: string) => ({ ...OIDC, MCP_PUBLIC_URL: url });
+    expect(() => parseConfig(withUrl('https://mcp.example.com/mcp'))).toThrow(/MCP_PUBLIC_URL: origine seule/);
+    expect(parseConfig(withUrl('https://mcp.example.com/')).oidc?.publicUrl).toBe('https://mcp.example.com/');
   });
 
   it('AUTH_DEV_TOKENS : accepté hors production, refusé avec NODE_ENV=production', () => {
     expect(parseConfig(DEV).devUsers.size).toBe(1);
-    expect(() => parseConfig({ ...DEV, ...OIDC, NODE_ENV: 'production' })).toThrow(/AUTH_DEV_TOKENS: interdit avec NODE_ENV=production/);
+    expect(() => parseConfig({ ...DEV, ...OIDC, NODE_ENV: 'production' }))
+      .toThrow(/AUTH_DEV_TOKENS: interdit avec NODE_ENV=production/);
     expect(parseConfig({ ...OIDC, NODE_ENV: 'production' }).devUsers.size).toBe(0);
   });
 
   it('AUTH_DEV_TOKENS mal formé ou trop court => erreur claire, sans le jeton', () => {
-    expect(() => parseConfig({ AUTH_DEV_TOKENS: ':0123456789abcdef-secret' })).toThrow(/entrée n°1 : format identifiant:jeton/);
+    expect(() => parseConfig({ AUTH_DEV_TOKENS: ':0123456789abcdef-secret' }))
+      .toThrow(/entrée n°1 : format identifiant:jeton/);
     expect(() => parseConfig({ AUTH_DEV_TOKENS: ':0123456789abcdef-secret' })).not.toThrow(/0123/);
     expect(() => parseConfig({ AUTH_DEV_TOKENS: 'lucas:secret-court' })).toThrow(/trop court/);
     expect(() => parseConfig({ AUTH_DEV_TOKENS: 'lucas:secret-court' })).not.toThrow(/secret-court/);
@@ -52,9 +56,12 @@ describe('configuration', () => {
   });
 
   it('valeurs d\'exemple refusées : jeton de dev, secret OIDC, token GitLab', () => {
-    expect(() => parseConfig({ AUTH_DEV_TOKENS: 'lucas:remplacer-par-openssl-rand-hex-32' })).toThrow(/valeur d'exemple/);
-    expect(() => parseConfig({ ...OIDC, OIDC_CLIENT_SECRET: '<Secret>' })).toThrow(/OIDC_CLIENT_SECRET: valeur d'exemple/);
-    expect(() => gitlabConfig.parse({ ...GITLAB, GITLAB_TOKEN: 'glpat-xxxxxxxxxxxxxxxxxxxx' })).toThrow(/GITLAB_TOKEN invalide/);
+    expect(() => parseConfig({ AUTH_DEV_TOKENS: 'lucas:remplacer-par-openssl-rand-hex-32' }))
+      .toThrow(/valeur d'exemple/);
+    expect(() => parseConfig({ ...OIDC, OIDC_CLIENT_SECRET: '<Secret>' }))
+      .toThrow(/OIDC_CLIENT_SECRET: valeur d'exemple/);
+    expect(() => gitlabConfig.parse({ ...GITLAB, GITLAB_TOKEN: 'glpat-xxxxxxxxxxxxxxxxxxxx' }))
+      .toThrow(/GITLAB_TOKEN invalide/);
     expect(gitlabConfig.parse(GITLAB).token).toBe('glpat-Hq83v1sZ0pLw');
   });
 });

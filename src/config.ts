@@ -21,7 +21,8 @@ const coreEnv = z.object({
     .transform((value) => (value === undefined ? undefined : /^\d+$/.test(value) ? Number(value) : value === 'true')),
 
   // --- Identité : OIDC (production) ---
-  MCP_PUBLIC_URL: z.url().refine((url) => new URL(url).pathname === '/', 'origine seule, sans chemin (ex. https://mcp.example.com)')
+  MCP_PUBLIC_URL: z.url()
+    .refine((url) => new URL(url).pathname === '/', 'origine seule, sans chemin (ex. https://mcp.example.com)')
     .optional(), // URL publique de CE serveur ; /mcp, /token… sont pris à la racine
   OIDC_ISSUER: z.url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
@@ -32,7 +33,8 @@ const coreEnv = z.object({
   OIDC_ALLOWED_GROUPS: z.string().optional(),
   // Adresses de retour acceptées à l'enregistrement d'un client (DCR) : URL exacte ou "http://hôte:*"
   OAUTH_REDIRECT_ALLOWLIST: z.string().default(DEFAULT_REDIRECT_ALLOWLIST.join(','))
-    .refine((value) => splitList(value).every(isAllowlistEntryValid), 'URL exacte ou "schéma://hôte:*", séparées par des virgules'),
+    .refine((value) => splitList(value).every(isAllowlistEntryValid),
+      'URL exacte ou "schéma://hôte:*", séparées par des virgules'),
 
   // --- Identité : jetons de développement (jamais en production) ---
   AUTH_DEV_TOKENS: z.string().optional(), // "lucas:<jeton>,bob:<jeton>"
@@ -99,7 +101,10 @@ export function dropEmptyValues(env: NodeJS.ProcessEnv): Record<string, string> 
   return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => !!entry[1]));
 }
 
-/** Valide l'environnement (déjà passé par dropEmptyValues) ; l'erreur liste tout ce qui ne va pas, sans aucune valeur. */
+/**
+ * Valide l'environnement (déjà passé par dropEmptyValues). L'erreur liste tout ce qui ne va pas,
+ * sans jamais citer une valeur.
+ */
 export function parseConfig(env: Record<string, string>): Config {
   const parsed = schema.safeParse(env);
   if (parsed.success) return parsed.data;

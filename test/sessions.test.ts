@@ -25,7 +25,7 @@ beforeAll(async () => { mcp = await startMcp(); });
 afterAll(() => mcp.stop());
 
 describe('plafonds de sessions MCP', () => {
-  it('par personne : au-delà de 20, sa session la moins récente est fermée ; les autres ne sont pas touchées', async () => {
+  it('par personne : au-delà de 20, sa session la moins récente est fermée, celles des autres restent', async () => {
     const lucas = { Authorization: `Bearer ${DEV_TOKENS.lucas}` };
     const bob = { Authorization: `Bearer ${DEV_TOKENS.bob}` };
     const bobSession = (await openSession(mcp.url, bob)).headers.get('mcp-session-id')!;

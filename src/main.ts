@@ -25,7 +25,8 @@ function startServer() {
     if (error) exitWithError(`écoute impossible sur ${config.HOST}:${config.PORT} : ${error.message}`);
     const names = tools.map((tool) => tool.name).join(', ') || 'aucun';
     const identity = describeIdentity(config).join(' + ');
-    console.log(`mcp-maison prêt sur http://${config.HOST}:${config.PORT}/mcp — identité : ${identity} — outils : ${names}`);
+    const address = `http://${config.HOST}:${config.PORT}/mcp`;
+    console.log(`mcp-maison prêt sur ${address} — identité : ${identity} — outils : ${names}`);
   });
 
   const stopServer = createShutdown(httpServer, built);

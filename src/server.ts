@@ -1,5 +1,5 @@
 import { createApp, describeIdentity } from './app.js';
-import { createAuthorizer, loadPermissionRules } from './authorization/permissions.js';
+import { loadAuthorizer } from './authorization/permissions-file.js';
 import { loadConfig, withoutEmptyValues } from './config.js';
 import { loadToolGroups } from './tools/registry.js';
 
@@ -9,16 +9,15 @@ if (config.devUsers.size) {
 }
 const { tools } = loadToolGroups(config.toolGroups, withoutEmptyValues(process.env));
 
-let rules;
+let authorizer;
 try {
-  rules = loadPermissionRules(config.PERMISSIONS_FILE);
+  authorizer = loadAuthorizer(config.PERMISSIONS_FILE);
 } catch (error) {
   console.error((error as Error).message);
   process.exit(1);
 }
-if (!rules) console.warn('[droits] aucun permissions.yaml : tout utilisateur identifié peut appeler tous les outils.');
 
-const { app, close } = createApp(config, { tools, authorize: createAuthorizer(rules) });
+const { app, close } = createApp(config, { tools, authorizer });
 
 const httpServer = app.listen(config.PORT, config.HOST, () => {
   const names = tools.map((tool) => tool.name).join(', ') || 'aucun';

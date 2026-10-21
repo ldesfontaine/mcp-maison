@@ -22,8 +22,10 @@ docker compose logs mcp | grep -i "non chargé" # groupes ignorés faute de conf
 ```
 
 Le volume `./data` porte la base SQLite (`mcp-maison.db`, sessions OAuth) et le journal (`audit.jsonl`).
-Pour les droits : monter `permissions.yaml` (ligne commentée dans `docker-compose.yml`) et régler
-`PERMISSIONS_FILE=/app/permissions.yaml`.
+Pour les droits : placer `permissions.yaml` dans `./config/`, monter ce dossier (ligne commentée dans
+`docker-compose.yml`) et régler `PERMISSIONS_FILE=/app/config/permissions.yaml`. Monter le dossier, pas le
+fichier seul : la plupart des éditeurs remplacent le fichier, et un montage de fichier garderait l'ancien,
+ce qui empêcherait le rechargement à chaud (`droits.md`).
 
 ## Reverse proxy HTTPS
 

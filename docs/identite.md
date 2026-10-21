@@ -104,6 +104,6 @@ Les options, dans l'ordre :
 
 ## Retirer quelqu'un
 
-1. Le retirer de `permissions.yaml` (ou d'un groupe autorisé) et redémarrer : ses appels sont refusés aussitôt.
+1. Le retirer de `permissions.yaml` (ou d'un groupe autorisé) : ses appels sont refusés dès l'enregistrement du fichier.
 2. Couper ses jetons : `sqlite3 data/mcp-maison.db "DELETE FROM oauth_tokens WHERE user_id = 'bob'"`.
 3. Bloquer son compte chez l'IdP : il ne pourra plus se reconnecter.

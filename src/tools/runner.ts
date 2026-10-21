@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
-import type { Authorizer } from '../authorization/permissions.js';
+import type { Authorizer } from '../authorization/authorizer.js';
 import { getUserFromAuth, type User } from '../identity/user.js';
 import { fail, type Logger, type Tool, type ToolContext } from './types.js';
 
@@ -11,7 +11,7 @@ type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 export interface RunnerDependencies {
   tools: Tool<any>[];
   audit: AuditLog;
-  authorize: Authorizer;
+  authorizer: Authorizer;
 }
 
 const SERVER_INFO = { name: 'mcp-maison', version: '0.1.0' };
@@ -38,7 +38,7 @@ export async function runTool(tool: Tool<any>, args: any, user: User, deps: Runn
     args: (tool.auditArgs ?? summarizeArgs)(args), ok: false, ms: 0
   };
 
-  if (!deps.authorize(user, tool.permission)) {
+  if (!deps.authorizer.can(user, tool.permission)) {
     await deps.audit.write({ ...entry, denied: true, error: `permission ${tool.permission} manquante` });
     return fail(
       `Accès refusé : ${tool.name} demande la permission « ${tool.permission} », que ${user.id} n'a pas. ` +
@@ -49,7 +49,7 @@ export async function runTool(tool: Tool<any>, args: any, user: User, deps: Runn
   const notes: Record<string, unknown> = {};
   const ctx: ToolContext = {
     user, audit: deps.audit, logger: createLogger(tool.name, user),
-    allowedTools: deps.tools.filter((t) => deps.authorize(user, t.permission)).map((t) => t.name),
+    allowedTools: deps.tools.filter((t) => deps.authorizer.can(user, t.permission)).map((t) => t.name),
     note: (details) => Object.assign(notes, details)
   };
   let result: CallToolResult;

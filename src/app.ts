@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { AuditLog } from './audit/log.js';
-import type { Authorizer } from './authorization/permissions.js';
+import type { Authorizer } from './authorization/authorizer.js';
 import type { Config } from './config.js';
 import { mountOAuth } from './identity/oauth/routes.js';
 import { createBearerVerifier } from './identity/dev-tokens.js';
@@ -13,7 +13,7 @@ import type { Tool } from './tools/types.js';
 
 export interface AppDependencies {
   tools: Tool<any>[];
-  authorize: Authorizer;
+  authorizer: Authorizer;
 }
 
 const AUDIT_PERMISSION = 'core:audit';
@@ -30,7 +30,7 @@ export function createApp(config: Config, deps: AppDependencies) {
   app.disable('x-powered-by');
   if (config.TRUST_PROXY) app.set('trust proxy', /^\d+$/.test(config.TRUST_PROXY) ? Number(config.TRUST_PROXY) : config.TRUST_PROXY);
   if (config.allowedHosts.length) app.use(hostHeaderValidation(config.allowedHosts));
-  const mcp = createMcpSessions(() => buildMcpServer({ tools: deps.tools, audit, authorize: deps.authorize }));
+  const mcp = createMcpSessions(() => buildMcpServer({ tools: deps.tools, audit, authorizer: deps.authorizer }));
 
   // Pas d'authentification ici : rien de sensible, juste de quoi superviser.
   app.get('/health', (_req, res) => {
@@ -47,7 +47,7 @@ export function createApp(config: Config, deps: AppDependencies) {
   // Le journal, lisible hors de Claude, avec la même permission que l'outil audit_recent.
   app.get('/audit', bearer, async (req, res) => {
     const user = getUserFromAuth(req.auth);
-    if (!deps.authorize(user, AUDIT_PERMISSION)) {
+    if (!deps.authorizer.can(user, AUDIT_PERMISSION)) {
       return void res.status(403).json({ error: `permission ${AUDIT_PERMISSION} manquante pour ${user.id}` });
     }
     const query = req.query as Record<string, string | undefined>;

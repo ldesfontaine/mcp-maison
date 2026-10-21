@@ -1,9 +1,5 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadPermissionRules } from '../src/authorization/permissions.js';
 import { parseConfig } from '../src/config.js';
-import { tempDir } from './helpers.js';
 
 const DEV = { AUTH_DEV_TOKENS: 'lucas:0123456789abcdef-secret' };
 const OIDC = {
@@ -37,15 +33,5 @@ describe('configuration', () => {
 
   it('une variable vide compte comme absente', () => {
     expect(() => parseConfig({ AUTH_DEV_TOKENS: '' })).toThrow(/aucune identité configurée/);
-  });
-
-  it('PERMISSIONS_FILE demandé mais absent => erreur (ne jamais tout ouvrir par accident)', () => {
-    expect(() => loadPermissionRules('/nulle/part/permissions.yaml')).toThrow(/introuvable/);
-  });
-
-  it('permissions.yaml invalide => erreur qui dit où', () => {
-    const path = join(tempDir(), 'permissions.yaml');
-    writeFileSync(path, 'users:\n  lucas: ["publier tout"]\n');
-    expect(() => loadPermissionRules(path)).toThrow(/users\.lucas\.0/);
   });
 });

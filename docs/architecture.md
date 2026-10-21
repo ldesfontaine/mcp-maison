@@ -6,7 +6,7 @@ Il répond à trois questions, chacune dans son dossier :
 | Question | Dossier | Ce qu'il fait |
 | --- | --- | --- |
 | Qui appelle ? | `src/identity/` | Serveur OAuth 2.1 qui délègue la connexion à un IdP OIDC (`oauth/`) ; jetons de dev hors production |
-| Qui peut quoi ? | `src/authorization/` | `permissions.yaml` : personnes et groupes → permissions |
+| Qui peut quoi ? | `src/authorization/` | Interface `Authorizer`, implémentée par `permissions.yaml` (relu à chaud) |
 | Qu'a-t-on fait ? | `src/audit/` | Journal JSON Lines, une ligne par appel, refus compris |
 
 Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core, gitlab).
@@ -19,7 +19,7 @@ src/app.ts                HTTP : /health, /audit, /mcp, montage OAuth
 src/mcp-sessions.ts       sessions MCP, chacune liée à la personne qui l'a ouverte
 src/config.ts             variables du cœur validées (zod)
 src/identity/             user.ts (User), dev-tokens.ts, secrets.ts, oauth/ (store SQLite, OIDC)
-src/authorization/        permissions.ts
+src/authorization/        authorizer.ts (interface), rules.ts, permissions-file.ts
 src/audit/log.ts          écriture et lecture du journal
 src/tools/types.ts        contrat Tool, ToolGroup, ToolContext
 src/tools/registry.ts     charge les groupes de TOOL_GROUPS

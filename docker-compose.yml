@@ -14,8 +14,9 @@ services:
     volumes:
       # Base SQLite (sessions OAuth) + journal d'audit. Inscriptible par l'uid 1000 (user "node").
       - ./data:/app/data
-      # Droits par personne (optionnel). Décommenter et régler PERMISSIONS_FILE=/app/permissions.yaml.
-      # - ./permissions.yaml:/app/permissions.yaml:ro
+      # Droits (optionnel) : le DOSSIER, pas le fichier seul, sinon une modification (nouvel inode)
+      # ne serait pas vue par le conteneur. Décommenter et régler PERMISSIONS_FILE=/app/config/permissions.yaml.
+      # - ./config:/app/config:ro
     # Exposé en local uniquement : un reverse proxy HTTPS (Traefik, Caddy, Nginx) se met devant.
     ports:
       - "127.0.0.1:3000:3000"

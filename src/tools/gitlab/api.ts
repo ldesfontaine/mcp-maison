@@ -2,6 +2,9 @@ import { SLUG_PATTERN } from '../slug.js';
 import { cleanUpstreamError } from '../upstream-error.js';
 import type { GitlabConfig } from './config.js';
 
+/** La config, et pour qui on appelle : en-têtes d'identité de l'appelant (ToolContext.downstreamHeaders). */
+export type GitlabCall = GitlabConfig & { downstreamHeaders?: Record<string, string> };
+
 export interface PublishFile {
   path: string;
   content: string;
@@ -47,21 +50,23 @@ const READ_TIMEOUT_MS = 10_000;
 const COMMIT_TIMEOUT_MS = 30_000;
 
 /** Le corps d'une réponse en erreur, nettoyé (sans HTML ni jeton) et borné. */
-const readError = async (config: GitlabConfig, response: Response) =>
+const readError = async (config: GitlabCall, response: Response) =>
   cleanUpstreamError(await response.text(), [config.token]);
 
 /** Appel à l'API REST GitLab v4 du projet configuré, borné dans le temps. */
-async function callProjectApi(config: GitlabConfig, path: string, init: RequestInit = {}): Promise<Response> {
+async function callProjectApi(config: GitlabCall, path: string, init: RequestInit = {}): Promise<Response> {
   const timeout = init.method === 'POST' ? COMMIT_TIMEOUT_MS : READ_TIMEOUT_MS;
   return fetch(`${config.url}/api/v4/projects/${encodeURIComponent(config.projectId)}${path}`, {
     ...init,
     signal: AbortSignal.timeout(timeout),
-    headers: { 'PRIVATE-TOKEN': config.token, 'Content-Type': 'application/json', ...init.headers }
+    headers: {
+      ...config.downstreamHeaders, 'PRIVATE-TOKEN': config.token, 'Content-Type': 'application/json', ...init.headers
+    }
   });
 }
 
 /** Parcourt l'arbre du dépôt (pagination keyset). Dossier inexistant (404) = liste vide. */
-async function listTree(config: GitlabConfig, dir: string, recursive: boolean): Promise<TreeItem[]> {
+async function listTree(config: GitlabCall, dir: string, recursive: boolean): Promise<TreeItem[]> {
   const query = new URLSearchParams({
     ref: config.branch, recursive: String(recursive), per_page: '100', pagination: 'keyset'
   });
@@ -80,13 +85,13 @@ async function listTree(config: GitlabConfig, dir: string, recursive: boolean): 
   return items;
 }
 
-async function listExistingFiles(config: GitlabConfig, dir: string): Promise<Set<string>> {
+async function listExistingFiles(config: GitlabCall, dir: string): Promise<Set<string>> {
   const items = await listTree(config, dir, true);
   return new Set(items.filter((item) => item.type === 'blob').map((item) => item.path));
 }
 
 /** Les dossiers à la racine du dépôt dont le nom est un slug valide : ce sont les publications. */
-export async function listPublishedSlugs(config: GitlabConfig): Promise<string[]> {
+export async function listPublishedSlugs(config: GitlabCall): Promise<string[]> {
   const items = await listTree(config, '', false);
   return items.filter((item) => item.type === 'tree' && SLUG_PATTERN.test(item.name)).map((item) => item.name).sort();
 }
@@ -100,7 +105,7 @@ const LAST_COMMIT_CONCURRENCY = 10;
 
 /** Une page de publications, par ordre alphabétique après `after` ; une requête « dernier commit » par slug. */
 export async function listPublications(
-  config: GitlabConfig, { limit, after }: { limit: number; after?: string }
+  config: GitlabCall, { limit, after }: { limit: number; after?: string }
 ): Promise<PublicationPage> {
   const remaining = (await listPublishedSlugs(config)).filter((slug) => !after || slug > after);
   const slugs = remaining.slice(0, limit);
@@ -114,7 +119,7 @@ export async function listPublications(
 }
 
 /** Dernier commit sur <slug>/ dans la branche publiée ; undefined si GitLab n'en trouve pas. */
-export async function findLastCommit(config: GitlabConfig, slug: string): Promise<LastCommit | undefined> {
+export async function findLastCommit(config: GitlabCall, slug: string): Promise<LastCommit | undefined> {
   const query = new URLSearchParams({ path: slug, ref_name: config.branch, per_page: '1' });
   const response = await callProjectApi(config, `/repository/commits?${query}`);
   if (!response.ok) return undefined;
@@ -129,7 +134,7 @@ export const buildPublicUrl = (config: GitlabConfig, slug: string) => `${config.
  * Un slug déjà publié n'est écrasé que si `overwrite` est demandé.
  */
 export async function publishFiles(
-  config: GitlabConfig, slug: string, files: PublishFile[], { message, author, overwrite = false }: PublishOptions = {}
+  config: GitlabCall, slug: string, files: PublishFile[], { message, author, overwrite = false }: PublishOptions = {}
 ): Promise<PublishResult> {
   const existing = await listExistingFiles(config, slug);
   if (existing.size && !overwrite) throw new SlugTakenError(slug, await findLastCommit(config, slug));

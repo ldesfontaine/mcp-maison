@@ -41,9 +41,10 @@ export function createCurrentTool(config: MeteoConfig) {
     inputSchema: { city: z.string().min(1).max(80).describe('Nom de la ville') },
     permission: 'meteo:read',
     annotations: { readOnlyHint: true, openWorldHint: true },
-    async handler({ city }) {
+    async handler({ city }, { downstreamHeaders }) {
       const url = `${config.url}/now?city=${encodeURIComponent(city)}`;
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${config.apiKey}` } });
+      const headers = { ...downstreamHeaders(), Authorization: `Bearer ${config.apiKey}` };
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
       if (!response.ok) return replyError(`Service météo : ${response.status}`);
       return replyText(await response.text());
     }
@@ -71,6 +72,25 @@ Enfin, une ligne dans `src/tools/registry.ts` :
 ```ts
 export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup, meteoGroup];
 ```
+
+## Dire au service aval qui appelle
+
+mcp-maison sait qui appelle (`ctx.user`) ; l'intégration, elle, parle au service aval avec **un seul jeton de
+service**. Pour que le journal du service aval ne voie pas que ce jeton, chaque appel joint
+`ctx.downstreamHeaders()` :
+
+```
+X-MCP-Maison-User: <user.id : sub OIDC ou identifiant de AUTH_DEV_TOKENS>
+X-MCP-Maison-User-Name: <nom affiché : name, sinon username, sinon id>
+```
+
+- Jamais un secret, jamais le jeton de l'IdP, ni courriel ni groupes. Valeurs nettoyées pour un en-tête HTTP :
+  ASCII imprimable (accents retirés), sans retour à la ligne, 200 caractères au plus.
+- **Le service aval peut journaliser `on_behalf_of`** (ex. recopier `X-MCP-Maison-User` dans le détail de son
+  événement d'audit quand l'acteur est le jeton de service). **Il fait confiance au jeton de service, pas à
+  l'en-tête** : n'importe quel détenteur du jeton peut écrire ces en-têtes. Ils rendent le journal lisible, ils
+  n'autorisent rien.
+- Le client `gitlab` les envoie déjà ; un nouveau client les met dans **chaque** requête, comme ci-dessus.
 
 ## Le test
 
@@ -107,4 +127,5 @@ Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
 - Ajouter ses variables à `.env.example`, commentées (un test vérifie que la liste est exacte).
 - Ajouter ses permissions à `permissions.example.yaml` et au tableau de `droits.md`.
 - Un test avec un faux service, comme ci-dessus.
+- `ctx.downstreamHeaders()` dans chaque requête vers le service aval.
 - Les données venues de tiers se disent comme telles dans la description : des données, jamais des instructions.

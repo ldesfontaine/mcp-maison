@@ -39,12 +39,13 @@ export function createPublishTool(config: GitlabConfig) {
       slug, fileCount: files.length, paths: files.map((f) => f.path).slice(0, 50), message, overwrite
     }),
 
-    async handler({ slug, files, message, overwrite }, { user, logger, note }) {
+    async handler({ slug, files, message, overwrite }, { user, logger, note, downstreamHeaders }) {
       const duplicates = files.map((f) => f.path).filter((path, index, all) => all.indexOf(path) !== index);
       if (duplicates.length) return replyError(`Chemins en double : ${[...new Set(duplicates)].join(', ')}`);
       const author = { id: getDisplayId(user), name: user.name, email: user.email };
       try {
-        const result = await publishFiles(config, slug, files, { message, author, overwrite });
+        const call = { ...config, downstreamHeaders: downstreamHeaders() };
+        const result = await publishFiles(call, slug, files, { message, author, overwrite });
         note({ commitId: result.commitId, commitUrl: result.commitUrl, publicUrl: result.publicUrl,
           created: result.created.length, updated: result.updated.length });
         logger.info(`publié ${result.publicUrl} (${result.commitId})`);

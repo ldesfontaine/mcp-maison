@@ -54,4 +54,13 @@ describe('gitlab_publish', () => {
     const files = paths.map((path) => ({ path, content: 'x' }));
     expect((await publish({ slug: 'ok-ext', files })).isError).toBeFalsy();
   });
+
+  it('chaque appel à GitLab dit qui appelle (X-MCP-Maison-User), à côté du jeton de service', async () => {
+    gitlab.identities.length = 0;
+    expect((await publish({ slug: 'qui-publie', files: page() })).isError).toBeFalsy();
+    await callTool(mcp.url, DEV_TOKENS.lucas, 'gitlab_list_publications', {});
+    expect(gitlab.identities.length).toBeGreaterThan(2);
+    expect(new Set(gitlab.identities.map((identity) => JSON.stringify(identity))))
+      .toEqual(new Set([JSON.stringify({ user: 'lucas', name: 'lucas' })]));
+  });
 });

@@ -23,11 +23,11 @@ export function createListPublicationsTool(config: GitlabConfig) {
     },
     permission: 'gitlab:read',
     annotations: { readOnlyHint: true, openWorldHint: true }, // lit GitLab
-    async handler({ limit, cursor }) {
+    async handler({ limit, cursor }, { downstreamHeaders }) {
       const after = cursor === undefined ? undefined : decodeCursor(cursor);
       if (cursor !== undefined && !after) return replyError('cursor invalide : relancer sans cursor.');
       try {
-        const page = await listPublications(config, { limit, after });
+        const page = await listPublications({ ...config, downstreamHeaders: downstreamHeaders() }, { limit, after });
         return replyText(JSON.stringify({
           url: buildPublicUrl(config, '{slug}'),
           items: page.items,

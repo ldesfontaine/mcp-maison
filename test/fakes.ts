@@ -86,12 +86,17 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
 /**
  * Faux GitLab, côté API seulement (groupe d'outils gitlab) : un dépôt en mémoire. tree liste les fichiers
  * d'un dossier (404 s'il n'existe pas) ou les dossiers de la racine, commits enregistre les actions et répond
- * à « dernier commit sur un chemin ».
+ * à « dernier commit sur un chemin ». `identities` garde les en-têtes d'identité reçus, requête par requête.
  */
 export function fakeGitlab() {
   const app = express();
   const commits: Record<string, any>[] = [];
   const files = new Set<string>();
+  const identities: { user?: string; name?: string }[] = []; // en-têtes X-MCP-Maison-* de chaque requête
+  app.use((req, _res, next) => {
+    identities.push({ user: req.get('x-mcp-maison-user'), name: req.get('x-mcp-maison-user-name') });
+    next();
+  });
   app.use(express.json({ limit: '20mb' }));
   app.get('/api/v4/projects/:id/repository/tree', (req, res) => {
     const dir = String(req.query.path ?? '');
@@ -119,5 +124,5 @@ export function fakeGitlab() {
     for (const action of req.body.actions) files.add(action.file_path);
     res.status(201).json({ id: 'c0ffee', web_url: commit.web_url });
   });
-  return { app, commits, files };
+  return { app, commits, files, identities };
 }

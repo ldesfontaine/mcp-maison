@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
 import { getDisplayId, getUserFromAuth, type User } from '../identity/user.js';
+import { buildDownstreamHeaders } from './downstream.js';
 import { DEFAULT_MAX_RESULT_CHARS, replyError, type Logger, type Tool, type ToolContext } from './types.js';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -76,7 +77,8 @@ async function runTool(
     user, audit: deps.audit, logger: createLogger(tool.name, user),
     permissions: deps.authorizer.listPermissions(user),
     allowedTools: deps.tools.filter((t) => deps.authorizer.can(user, t.permission)).map((t) => t.name),
-    note: (details) => Object.assign(notes, details)
+    note: (details) => Object.assign(notes, details),
+    downstreamHeaders: () => buildDownstreamHeaders(user)
   };
   let result: CallToolResult;
   try {

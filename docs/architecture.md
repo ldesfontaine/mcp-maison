@@ -41,6 +41,7 @@ src/audit/log.ts, routes.ts    le journal, et GET /audit
 src/tools/types.ts             contrat Tool, ToolGroup, ToolContext, defineGroupConfig
 src/tools/registry.ts          charge les groupes de TOOL_GROUPS
 src/tools/runner.ts            droit -> exécution -> journal
+src/tools/downstream.ts        en-têtes d'identité vers un service aval (X-MCP-Maison-User)
 src/tools/slug.ts              SLUG_PATTERN, la seule définition d'un slug
 src/tools/gitlab/files.ts      chemins et extensions acceptés à la publication
 src/tools/core|gitlab/

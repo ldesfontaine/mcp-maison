@@ -18,6 +18,11 @@ export interface ToolContext {
   allowedTools: string[]; // outils que cet utilisateur peut appeler
   /** Ajoute des détails à la ligne de journal de cet appel (ex. { commitId }). */
   note(details: Record<string, unknown>): void;
+  /**
+   * En-têtes d'identité à joindre à chaque appel d'un service aval (X-MCP-Maison-User, X-MCP-Maison-User-Name) :
+   * indicatifs, pour son journal ; jamais un secret. Le service aval fait confiance au jeton de service.
+   */
+  downstreamHeaders(): Record<string, string>;
 }
 
 type ArgsOf<S extends z.ZodRawShape> = z.infer<z.ZodObject<S>>;

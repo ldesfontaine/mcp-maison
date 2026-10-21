@@ -38,7 +38,7 @@ Puis dans `src/tools/core/index.ts` : `createTools: () => [pingTool, whoamiTool,
 | `maxResultChars` | Taille maximale du résultat (défaut 4 000) ; au-delà, le runner tronque |
 | `permission` | `"groupe:action"`, doit commencer par le nom du groupe (vérifié au démarrage) |
 | `auditArgs` | Résumé des arguments pour le journal, dès qu'un argument est gros ou sensible |
-| `handler(args, ctx)` | `ctx = { user, logger, audit, permissions, allowedTools, note }` |
+| `handler(args, ctx)` | `ctx = { user, logger, audit, permissions, allowedTools, note, downstreamHeaders }` |
 
 - `replyText('…')` pour la réponse, `replyError('message')` pour une erreur métier : Claude la lit et peut corriger ; journalisée `ok:false`.
 - Une exception devient « Erreur interne : … », journalisée aussi.

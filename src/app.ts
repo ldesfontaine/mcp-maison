@@ -50,11 +50,14 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   app.use('/mcp', bearer, express.json({ limit: config.MAX_BODY }), mcp.router);
   app.use(sendJsonRpcError);
 
+  // Deux temps pour l'arrêt (main.ts) : les sessions d'abord, la base une fois les requêtes terminées.
+  const closeSessions = () => mcp.closeAll();
+  const closeStorage = () => oauth?.close();
   const close = async () => {
-    await mcp.closeAll();
-    oauth?.close();
+    await closeSessions();
+    closeStorage();
   };
-  return { app, config, tools, audit, close };
+  return { app, config, tools, audit, closeSessions, closeStorage, close };
 }
 
 // Erreurs (ex. corps trop gros -> 413) au format JSON-RPC.

@@ -1,0 +1,17 @@
+# Droits par personne et par groupe. Copier en permissions.yaml (ou pointer PERMISSIONS_FILE dessus).
+# Sans fichier, tout utilisateur identifié peut appeler tous les outils.
+# Permission = "groupe:action". "*" = tout ; "gitlab:*" = toutes les actions du groupe gitlab.
+# Les droits s'additionnent : everyone + users.<id> + groups.<groupe> de chaque groupe de la personne.
+
+everyone:            # toute personne connectée
+  - core:read        # ping, whoami
+
+users:               # par identifiant (username GitLab, preferred_username OIDC, ou id de MCP_TOKENS)
+  lucas: ["*"]
+
+groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/dev")
+  exemple/dev:
+    - gitlab:*       # gitlab_publish, gitlab_list_publications
+  exemple/lecture:
+    - gitlab:read
+    - core:audit     # audit_recent et GET /audit

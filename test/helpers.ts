@@ -1,0 +1,68 @@
+import { createServer, type Server } from 'node:http';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { AddressInfo } from 'node:net';
+import type { Express } from 'express';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { createApp } from '../src/app.js';
+import { createAuthorizer, type PermissionRules } from '../src/authorization/permissions.js';
+import { parseConfig } from '../src/config.js';
+import { loadToolGroups } from '../src/tools/registry.js';
+
+/** Serveur HTTP sur un port libre ; le handler peut être branché après coup (l'URL doit être connue avant). */
+export async function listen(app?: Express): Promise<{ server: Server; url: string; use: (a: Express) => void }> {
+  let handler: Express | undefined = app;
+  const server = createServer((req, res) => (handler ? handler(req, res) : res.end()));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return { server, url, use: (next) => { handler = next; } };
+}
+
+export const tempDir = () => mkdtempSync(join(tmpdir(), 'mcp-maison-'));
+
+/** Démarre l'application complète. `dataDir` permet de redémarrer sur la même base. */
+export async function startMcp(env: Record<string, string>, options: { rules?: PermissionRules; dataDir?: string; url?: string } = {}) {
+  const srv = await listen();
+  const dataDir = options.dataDir ?? tempDir();
+  const fullEnv = {
+    TOOL_GROUPS: 'core,gitlab',
+    GITLAB_URL: 'https://gitlab.invalid', GITLAB_PROJECT_ID: '42', GITLAB_TOKEN: 'server-token',
+    GITLAB_PUBLISH_BASE_URL: 'https://demo.invalid',
+    AUDIT_LOG_PATH: join(dataDir, 'audit.jsonl'), DATABASE_PATH: join(dataDir, 'mcp-maison.db'),
+    ...(env.AUTH_MODE === 'oauth' ? { MCP_PUBLIC_URL: srv.url } : {}),
+    ...env
+  };
+  const config = parseConfig(fullEnv);
+  const { tools } = loadToolGroups(config.toolGroups, fullEnv);
+  const built = createApp(config, { tools, authorize: createAuthorizer(options.rules) });
+  srv.use(built.app);
+  const stop = async () => {
+    await built.close();
+    await new Promise((resolve) => srv.server.close(resolve));
+  };
+  return { ...built, url: srv.url, dataDir, stop };
+}
+
+/** Client MCP officiel du SDK, authentifié par un Bearer donné. */
+export async function mcpClient(url: string, token: string) {
+  const client = new Client({ name: 'test', version: '0' });
+  const transport = new StreamableHTTPClientTransport(new URL('/mcp', url), {
+    requestInit: { headers: { Authorization: `Bearer ${token}` } }
+  });
+  await client.connect(transport);
+  return { client, transport, sessionId: transport.sessionId };
+}
+
+/** Appelle un outil en ouvrant et refermant une session. */
+export async function callTool(url: string, token: string, name: string, args: Record<string, unknown> = {}) {
+  const { client } = await mcpClient(url, token);
+  try {
+    return await client.callTool({ name, arguments: args });
+  } finally {
+    await client.close();
+  }
+}
+
+export const textOf = (result: any): string => result.content.map((item: any) => item.text).join('\n');

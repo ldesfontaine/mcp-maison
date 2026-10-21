@@ -15,7 +15,8 @@ interface FakeOidcOptions {
 /**
  * Faux IdP OpenID Connect (GitLab, Keycloak, Authentik…) : découverte sous /realms/test, authorize qui
  * accepte tout de suite, token (code avec PKCE, ou refresh avec rotation), userinfo.
- * `claims` est modifiable pendant le test ; `revokeRefreshTokens` simule un compte bloqué.
+ * `claims` est modifiable pendant le test ; `revokeRefreshTokens` simule un compte bloqué ;
+ * `failNextTokenRequests` simule une panne (5xx) du token_endpoint.
  */
 export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptions = {}) {
   const app = express();
@@ -24,6 +25,7 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
   const accessTokens = new Set<string>();
   const refreshTokens = new Set<string>();
   const issuedRefreshTokens: string[] = [];
+  let failures = { status: 0, remaining: 0 };
   const issueTokens = () => {
     const access = generateCode();
     accessTokens.add(access);
@@ -52,6 +54,10 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
   });
   app.post('/token', (req, res) => {
     const body = req.body as Record<string, string>;
+    if (failures.remaining > 0) {
+      failures.remaining -= 1;
+      return void res.status(failures.status).json({ error: 'server_error' });
+    }
     if (body.client_secret !== IDP_CLIENT.secret) return void res.status(401).json({ error: 'invalid_client' });
     if (body.grant_type === 'refresh_token') {
       if (!refreshTokens.delete(body.refresh_token)) return void res.status(400).json({ error: 'invalid_grant' });
@@ -67,7 +73,11 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
     const token = req.headers.authorization?.replace('Bearer ', '') ?? '';
     return void (accessTokens.has(token) ? res.json(claims) : res.status(401).end());
   });
-  return { app, claims, issuedRefreshTokens, revokeRefreshTokens: () => refreshTokens.clear() };
+  return {
+    app, claims, issuedRefreshTokens,
+    revokeRefreshTokens: () => refreshTokens.clear(),
+    failNextTokenRequests: (status: number, count = 1) => { failures = { status, remaining: count }; }
+  };
 }
 
 /** Faux GitLab, côté API seulement (groupe d'outils gitlab) : tree et commits. */

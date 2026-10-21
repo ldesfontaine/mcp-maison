@@ -26,6 +26,7 @@ src/identity/
   oauth/authorization-server.ts  OAuth 2.1 pour Claude : codes, jetons, rotation
   oauth/idp-gateway.ts         ce qu'on demande à l'IdP : connexion, renouvellement, comptes autorisés
   oauth/oidc.ts                client OIDC générique : découverte, token_endpoint, userinfo
+  oauth/idp-http.ts            appels à l'IdP bornés à 10 s ; « refuse » ou « ne répond pas »
   oauth/clients.ts             clients DCR et vérification de leur secret
   oauth/database.ts            ouverture SQLite et application des migrations
   oauth/migrations.ts          migrations numérotées du schéma (table schema_version)
@@ -105,6 +106,6 @@ Le journal ne contient jamais le contenu des fichiers ni un secret : chaque outi
 | Choix | Ce qu'il rapporte | Ce qu'il coûte |
 | --- | --- | --- |
 | SQLite pour l'état OAuth | Un redémarrage ne déconnecte personne | Un seul réplica (fichier local) ; sauvegarde à prévoir |
-| Identité relue à chaque refresh | Groupes et blocages de l'IdP pris en compte dans l'heure | Refresh token de l'IdP gardé (chiffré) ; IdP injoignable = reconnexion |
+| Identité relue à chaque refresh | Groupes et blocages de l'IdP pris en compte dans l'heure | Refresh token de l'IdP gardé (chiffré) ; IdP en panne = pas de refresh tant qu'il ne répond pas |
 | Outils visibles même sans droit | Le refus est explicite et journalisé | Claude voit des outils qu'il ne pourra pas appeler |
 | Groupe mal configuré ignoré | Une intégration en panne ne coupe pas les autres | Il faut lire l'avertissement au démarrage |

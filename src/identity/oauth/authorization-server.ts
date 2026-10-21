@@ -3,11 +3,13 @@ import type { Response } from 'express';
 import type { AuthorizationParams, OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { InvalidGrantError, InvalidTargetError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
+import {
+  InvalidGrantError, InvalidTargetError, InvalidTokenError, TemporarilyUnavailableError
+} from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { generateSecret } from '../secrets.js';
 import { createClientsStore } from './clients.js';
 import { getDisplayId } from '../user.js';
-import type { IdpGateway, SignedInIdentity } from './idp-gateway.js';
+import { IdentityRefusedError, type IdpGateway, type SignedInIdentity } from './idp-gateway.js';
 import { getEpochSeconds, type OAuthStore, type StoredToken } from './store.js';
 
 const PENDING_TTL = 600;
@@ -87,19 +89,26 @@ export class AuthorizationServer implements OAuthServerProvider {
     return this.issueTokens(client.client_id, stored, [], randomUUID());
   }
 
-  /** Rotation : chaque refresh sert une fois. Rejoué, il révoque toute sa famille (vol probable). */
+  /**
+   * Rotation : chaque refresh sert une fois. Rejoué, il révoque toute sa famille (vol probable).
+   * L'identité est relue chez l'IdP AVANT de consommer le refresh : si l'IdP ne répond pas, Claude réessaiera
+   * avec le même jeton.
+   */
   async exchangeRefreshToken(client: OAuthClientInformationFull, refreshToken: string, scopes?: string[]) {
     const stored = this.options.store.findToken(refreshToken);
     if (!stored || stored.kind !== 'refresh' || stored.clientId !== client.client_id || stored.expiresAt < getEpochSeconds()) {
       throw new InvalidGrantError('refresh token invalide');
     }
-    if (!this.options.store.markRefreshUsed(refreshToken)) {
-      this.options.store.deleteFamily(stored.familyId);
-      console.warn(`[oauth] refresh rejoué pour ${getDisplayId(stored.user)} : famille révoquée`);
-      throw new InvalidGrantError('refresh token déjà utilisé');
-    }
+    if (stored.usedAt) this.revokeReplayedFamily(stored);
     const identity = await this.renewIdentity(stored);
+    if (!this.options.store.markRefreshUsed(refreshToken)) this.revokeReplayedFamily(stored); // usage concurrent
     return this.issueTokens(client.client_id, identity, scopes ?? stored.scopes, stored.familyId);
+  }
+
+  private revokeReplayedFamily(stored: StoredToken): never {
+    this.options.store.deleteFamily(stored.familyId);
+    console.warn(`[oauth] refresh rejoué pour ${getDisplayId(stored.user)} : famille révoquée`);
+    throw new InvalidGrantError('refresh token déjà utilisé');
   }
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
@@ -115,14 +124,22 @@ export class AuthorizationServer implements OAuthServerProvider {
     this.options.store.deleteToken(request.token);
   }
 
-  /** Identité relue chez l'IdP ; en cas d'échec, la famille est révoquée et Claude devra reconnecter. */
+  /**
+   * Identité relue chez l'IdP. Refus explicite : famille révoquée, Claude devra reconnecter.
+   * Toute autre panne (IdP injoignable, 5xx, délai) : temporarily_unavailable, rien n'est consommé.
+   */
   private async renewIdentity(stored: StoredToken): Promise<SignedInIdentity> {
     try {
       return await this.options.idp.renew(stored);
     } catch (error) {
+      const who = getDisplayId(stored.user);
+      if (!(error instanceof IdentityRefusedError)) {
+        console.warn(`[oauth] identité de ${who} non renouvelée, IdP indisponible (${(error as Error).message})`);
+        throw new TemporarilyUnavailableError("fournisseur d'identité indisponible, réessayer plus tard");
+      }
       this.options.store.deleteFamily(stored.familyId);
-      console.warn(`[oauth] identité de ${getDisplayId(stored.user)} non renouvelée (${(error as Error).message}) : famille révoquée`);
-      throw new InvalidGrantError("identité non renouvelée par l'IdP : reconnecter le connecteur");
+      console.warn(`[oauth] identité de ${who} refusée (${error.message}) : famille révoquée`);
+      throw new InvalidGrantError("identité refusée par l'IdP : reconnecter le connecteur");
     }
   }
 

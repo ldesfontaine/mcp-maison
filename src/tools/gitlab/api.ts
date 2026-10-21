@@ -23,10 +23,16 @@ export interface PublishResult {
 
 type TreeItem = { path: string; name: string; type: 'blob' | 'tree' };
 
-/** Appel à l'API REST GitLab v4 du projet configuré. */
+// Lectures : 10 s. Le commit peut porter jusqu'à MAX_BODY (10 Mo) de fichiers : 30 s.
+const READ_TIMEOUT_MS = 10_000;
+const COMMIT_TIMEOUT_MS = 30_000;
+
+/** Appel à l'API REST GitLab v4 du projet configuré, borné dans le temps. */
 async function callProjectApi(config: GitlabConfig, path: string, init: RequestInit = {}): Promise<Response> {
+  const timeout = init.method === 'POST' ? COMMIT_TIMEOUT_MS : READ_TIMEOUT_MS;
   return fetch(`${config.url}/api/v4/projects/${encodeURIComponent(config.projectId)}${path}`, {
     ...init,
+    signal: AbortSignal.timeout(timeout),
     headers: { 'PRIVATE-TOKEN': config.token, 'Content-Type': 'application/json', ...init.headers }
   });
 }

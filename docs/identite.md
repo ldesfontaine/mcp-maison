@@ -49,9 +49,9 @@ mcp-maison renouvelle aussi celui de l'IdP et relit `userinfo` : groupes, nom, e
 | L'IdP… | Effet au prochain refresh (1 h au plus) |
 | --- | --- |
 | a changé les groupes | Nouveaux groupes, donc nouveaux droits (`droits.md`) |
-| refuse le refresh (compte bloqué, accès révoqué) | Famille de jetons révoquée : la personne doit reconnecter, et l'IdP la refusera |
+| refuse le refresh (`invalid_grant` : compte bloqué, accès révoqué) | Famille de jetons révoquée : la personne doit reconnecter, et l'IdP la refusera |
 | la sort des groupes de `OIDC_ALLOWED_GROUPS` | Même chose : refusée |
-| est injoignable | Même chose : on préfère couper que garder des droits périmés |
+| est injoignable, lent (> 10 s) ou en erreur 5xx | `temporarily_unavailable` : rien n'est consommé, Claude réessaie avec le même refresh ; le jeton d'accès en cours reste valable jusqu'à son échéance |
 | ne donne pas de refresh token | Identité de la connexion gardée (avertissement à la connexion). Keycloak, GitLab en donnent ; ailleurs, ajouter `offline_access` à `OIDC_SCOPES` si l'IdP l'exige |
 
 Pour cela, le refresh token de l'IdP est gardé en base, **chiffré** (AES-256-GCM) avec une clé dérivée de

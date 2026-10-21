@@ -74,6 +74,22 @@ describe('identité relue chez l\'IdP à chaque refresh', () => {
     expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401);
   });
 
+  it('IdP en panne (503) au refresh : temporarily_unavailable, rien de consommé ; le même refresh marche ensuite', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const idp = fakeOidc(claims());
+    const { mcp, idpUrl } = await startWithOidc(idp);
+    const { tokens, refresh } = await obtainTokens(mcp.url, idpUrl);
+    idp.failNextTokenRequests(503);
+    const unavailable = await refresh(tokens.refresh_token);
+    expect(unavailable.status).toBe(400);
+    expect((await unavailable.json()).error).toBe('temporarily_unavailable');
+    expect((await whoami(mcp.url, tokens.access_token)).id).toBe('f3a1'); // famille intacte
+    const retried = await refresh(tokens.refresh_token);
+    expect(retried.status).toBe(200);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('IdP indisponible'));
+    warn.mockRestore();
+  });
+
   it('sorti de OIDC_ALLOWED_GROUPS : refresh refusé', async () => {
     const idp = fakeOidc(claims());
     const { mcp, idpUrl } = await startWithOidc(idp, { OIDC_ALLOWED_GROUPS: 'integrateurs' });

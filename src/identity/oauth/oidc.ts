@@ -1,4 +1,5 @@
 import type { User } from '../user.js';
+import { fetchFromIdp, readTokenRefusal } from './idp-http.js';
 
 /** Ce que le serveur sait de l'IdP : l'application déclarée chez lui et ce qu'on lui demande. */
 export interface OidcSettings {
@@ -72,7 +73,7 @@ function memoizeDiscovery(issuer: string): () => Promise<Discovery> {
 
 async function fetchDiscovery(issuer: string): Promise<Discovery> {
   const url = `${trimSlashes(issuer)}/.well-known/openid-configuration`;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const response = await fetchFromIdp(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`découverte OIDC impossible (${response.status} sur ${url})`);
   const document = (await response.json()) as Discovery;
   // Un document qui annonce un autre issuer signale une erreur de config ou une usurpation.
@@ -93,19 +94,20 @@ async function fetchSession(discovery: Discovery, settings: OidcSettings, grant:
 }
 
 async function requestTokens(tokenEndpoint: string, settings: OidcSettings, grant: Record<string, string>) {
-  const response = await fetch(tokenEndpoint, {
+  const response = await fetchFromIdp(tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams({ ...grant, client_id: settings.clientId, client_secret: settings.clientSecret })
   });
-  if (!response.ok) throw new Error(`jeton refusé par l'IdP (${response.status})`);
+  if (!response.ok) throw await readTokenRefusal(response);
   const body = (await response.json()) as { access_token?: string; refresh_token?: string };
   if (!body.access_token) throw new Error("réponse de l'IdP sans access_token");
   return { access_token: body.access_token, refresh_token: body.refresh_token };
 }
 
 async function fetchUserinfo(userinfoEndpoint: string, accessToken: string, groupsClaim: string): Promise<User> {
-  const response = await fetch(userinfoEndpoint, { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } });
+  const headers = { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' };
+  const response = await fetchFromIdp(userinfoEndpoint, { headers });
   if (!response.ok) throw new Error(`userinfo refusé par l'IdP (${response.status})`);
   return mapClaimsToUser((await response.json()) as Record<string, unknown>, groupsClaim);
 }

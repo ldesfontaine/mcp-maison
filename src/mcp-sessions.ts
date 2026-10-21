@@ -6,7 +6,13 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getUserFromAuth } from './identity/user.js';
 
 const IDLE_MS = 30 * 60_000;
-const MAX_SESSIONS = 500;
+
+/** Plafonds : global (mémoire du serveur) et par personne (un client qui boucle ne prend pas toute la place). */
+export interface SessionLimits {
+  maxSessions: number;
+  maxSessionsPerUser: number;
+}
+const DEFAULT_LIMITS: SessionLimits = { maxSessions: 500, maxSessionsPerUser: 20 };
 
 // Une session MCP (en-tête mcp-session-id) appartient à l'utilisateur qui l'a ouverte.
 type Session = { transport: StreamableHTTPServerTransport; userId: string; lastActive: number };
@@ -15,7 +21,7 @@ const sendRpcError = (res: Response, status: number, message: string) =>
   res.status(status).json({ jsonrpc: '2.0', error: { code: -32000, message }, id: null });
 
 /** Routes POST/GET/DELETE /mcp, montées après l'auth Bearer (qui remplit req.auth). */
-export function createMcpSessions(newServer: () => McpServer) {
+export function createMcpSessions(newServer: () => McpServer, limits: SessionLimits = DEFAULT_LIMITS) {
   const sessions = new Map<string, Session>();
   const idleTimer = setInterval(() => {
     const cutoff = Date.now() - IDLE_MS;
@@ -32,8 +38,17 @@ export function createMcpSessions(newServer: () => McpServer) {
     return session;
   };
 
+  // Au-delà du plafond par personne, sa session la moins récemment utilisée est fermée.
+  const evictOldestSessionOf = async (userId: string) => {
+    const own = [...sessions.values()].filter((session) => session.userId === userId);
+    if (own.length < limits.maxSessionsPerUser) return;
+    const oldest = own.reduce((a, b) => (a.lastActive <= b.lastActive ? a : b));
+    await oldest.transport.close();
+  };
+
   const openSession = async (req: Request, res: Response) => {
     const userId = getUserFromAuth(req.auth).id;
+    await evictOldestSessionOf(userId);
     const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       enableJsonResponse: true, // réponses JSON simples, pas de flux SSE sur POST
@@ -51,7 +66,7 @@ export function createMcpSessions(newServer: () => McpServer) {
       if (existing) return await existing.transport.handleRequest(req, res, req.body);
       if (req.headers['mcp-session-id']) return sendRpcError(res, 404, 'Session not found');
       if (!isInitializeRequest(req.body)) return sendRpcError(res, 400, 'Bad Request: No valid session ID provided');
-      if (sessions.size >= MAX_SESSIONS) return sendRpcError(res, 503, 'Too many open sessions');
+      if (sessions.size >= limits.maxSessions) return sendRpcError(res, 503, 'Too many open sessions');
       await openSession(req, res);
     } catch (error) {
       console.error('Erreur /mcp :', error);

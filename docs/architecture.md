@@ -17,7 +17,7 @@ Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core
 src/main.ts                    le processus : createApp, écoute, arrêt propre, erreurs de démarrage
 src/app.ts                     l'assemblage : config, outils, droits, journal, routes /health /audit /mcp
 src/config.ts                  variables du cœur, validées (zod)
-src/mcp-sessions.ts            sessions MCP, chacune liée à la personne qui l'a ouverte
+src/mcp-sessions.ts            sessions MCP, liées à leur personne ; 500 au plus, 20 par personne (la plus ancienne cède)
 src/identity/
   user.ts                      User, et comment le retrouver dans une requête
   dev-tokens.ts                AUTH_DEV_TOKENS et le vérificateur Bearer

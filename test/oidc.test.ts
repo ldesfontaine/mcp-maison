@@ -1,13 +1,13 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { fakeOidc } from './fakes.js';
-import { callTool, listen, oidcEnv, startMcp, textOf } from './helpers.js';
+import { callTool, extractText, listen, oidcEnv, startMcp } from './helpers.js';
 import { connectLikeClaude, obtainTokens } from './oauth-helpers.js';
 
 const claims = () => ({ sub: 'f3a1', preferred_username: 'marie', name: 'Marie C.', email: 'marie@example.com', groups: ['integrateurs'] });
 const stops: (() => unknown)[] = [];
 afterAll(async () => { for (const stop of stops) await stop(); });
 
-const whoami = async (url: string, token: string) => JSON.parse(textOf(await callTool(url, token, 'whoami')));
+const whoami = async (url: string, token: string) => JSON.parse(extractText(await callTool(url, token, 'whoami')));
 
 async function startWithOidc(idp: ReturnType<typeof fakeOidc>, extraEnv: Record<string, string> = {}) {
   const idpServer = await listen(idp.app);

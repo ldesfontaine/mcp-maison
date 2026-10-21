@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, text } from '../types.js';
+import { defineTool, replyText } from '../types.js';
 
 // Le journal « qui a fait quoi », consultable depuis Claude.
 export const auditRecentTool = defineTool({
@@ -17,8 +17,8 @@ export const auditRecentTool = defineTool({
   permission: 'core:audit',
   annotations: { readOnlyHint: true },
   async handler(filter, { audit }) {
-    const entries = await audit.recent(filter);
-    if (!entries.length) return text('Journal vide pour ce filtre.');
-    return text(JSON.stringify(entries, null, 2));
+    const entries = await audit.listRecent(filter);
+    if (!entries.length) return replyText('Journal vide pour ce filtre.');
+    return replyText(JSON.stringify(entries, null, 2));
   }
 });

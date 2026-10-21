@@ -1,4 +1,4 @@
-import { defineTool, text } from '../types.js';
+import { defineTool, replyText } from '../types.js';
 
 export const whoamiTool = defineTool({
   name: 'whoami',
@@ -9,5 +9,5 @@ export const whoamiTool = defineTool({
   inputSchema: {},
   permission: 'core:read',
   annotations: { readOnlyHint: true },
-  handler: (_args, { user, allowedTools }) => text(JSON.stringify({ ...user, allowedTools }, null, 2))
+  handler: (_args, { user, allowedTools }) => replyText(JSON.stringify({ ...user, allowedTools }, null, 2))
 });

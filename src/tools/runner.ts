@@ -4,12 +4,12 @@ import type { CallToolResult, ServerNotification, ServerRequest } from '@modelco
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
 import { getUserFromAuth, type User } from '../identity/user.js';
-import { fail, type Logger, type Tool, type ToolContext } from './types.js';
+import { replyError, type Logger, type Tool, type ToolContext } from './types.js';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
 export interface RunnerDependencies {
-  tools: Tool<any>[];
+  tools: Tool[];
   audit: AuditLog;
   authorizer: Authorizer;
 }
@@ -24,14 +24,14 @@ export function buildMcpServer(deps: RunnerDependencies): McpServer {
     server.registerTool(
       tool.name,
       { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
-      (args: any, extra: Extra) => runTool(tool, args ?? {}, getUserFromAuth(extra.authInfo), deps)
+      (args: Record<string, unknown>, extra: Extra) => runTool(tool, args ?? {}, getUserFromAuth(extra.authInfo), deps)
     );
   }
   return server;
 }
 
 /** Vérifie le droit, exécute, mesure, journalise. Un refus est journalisé comme un appel. */
-export async function runTool(tool: Tool<any>, args: any, user: User, deps: RunnerDependencies): Promise<CallToolResult> {
+async function runTool(tool: Tool, args: Record<string, unknown>, user: User, deps: RunnerDependencies): Promise<CallToolResult> {
   const started = Date.now();
   const entry: AuditEntry = {
     ts: new Date(started).toISOString(), user: user.id, userName: user.name, provider: user.provider, tool: tool.name,
@@ -40,7 +40,7 @@ export async function runTool(tool: Tool<any>, args: any, user: User, deps: Runn
 
   if (!deps.authorizer.can(user, tool.permission)) {
     await deps.audit.write({ ...entry, denied: true, error: `permission ${tool.permission} manquante` });
-    return fail(
+    return replyError(
       `Accès refusé : ${tool.name} demande la permission « ${tool.permission} », que ${user.id} n'a pas. ` +
       "Demandez-la à l'administrateur du serveur (permissions.yaml)."
     );
@@ -55,10 +55,10 @@ export async function runTool(tool: Tool<any>, args: any, user: User, deps: Runn
   let result: CallToolResult;
   try {
     result = await tool.handler(args, ctx);
-    if (result.isError) entry.error = textOf(result).slice(0, MAX_ERROR_LENGTH);
+    if (result.isError) entry.error = extractText(result).slice(0, MAX_ERROR_LENGTH);
   } catch (error) {
     entry.error = (error as Error).message;
-    result = fail(`Erreur interne : ${entry.error}`);
+    result = replyError(`Erreur interne : ${entry.error}`);
   }
   await deps.audit.write({
     ...entry, ok: !entry.error, result: Object.keys(notes).length ? notes : undefined, ms: Date.now() - started
@@ -66,7 +66,7 @@ export async function runTool(tool: Tool<any>, args: any, user: User, deps: Runn
   return result;
 }
 
-function textOf(result: CallToolResult): string {
+function extractText(result: CallToolResult): string {
   return result.content.map((item) => (item.type === 'text' ? item.text : '')).join(' ');
 }
 

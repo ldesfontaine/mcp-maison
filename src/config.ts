@@ -85,24 +85,14 @@ export type Config = z.infer<typeof schema>;
 export type OidcConfig = NonNullable<Config['oidc']>;
 
 /** Une variable vide ("FOO=") compte comme absente : c'est ce qu'on attend d'un .env à moitié rempli. */
-export function withoutEmptyValues(env: NodeJS.ProcessEnv): Record<string, string> {
+export function dropEmptyValues(env: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => !!entry[1]));
 }
 
 /** Valide l'environnement ; lève une erreur qui liste tout ce qui ne va pas, sans aucune valeur. */
 export function parseConfig(env: NodeJS.ProcessEnv): Config {
-  const parsed = schema.safeParse(withoutEmptyValues(env));
+  const parsed = schema.safeParse(dropEmptyValues(env));
   if (parsed.success) return parsed.data;
   const lines = parsed.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`);
   throw new Error(`Configuration invalide :\n${lines.join('\n')}\nVoir .env.example`);
-}
-
-/** Point d'entrée : quitte avec un message clair plutôt qu'une pile d'appels. */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  try {
-    return parseConfig(env);
-  } catch (error) {
-    console.error((error as Error).message);
-    process.exit(1);
-  }
 }

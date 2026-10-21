@@ -1,33 +1,13 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { hashSecret } from '../secrets.js';
 import type { User } from '../user.js';
-
-// État OAuth persistant. Codes, jetons et secrets de client sont stockés hachés (SHA-256) :
-// une copie de la base ne donne accès à rien. Restent lisibles : le verifier PKCE envoyé à l'IdP
-// (dix minutes au plus) et idp_refresh, le refresh token de l'IdP, chiffré par le serveur d'autorisation.
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS oauth_clients (
-  client_id TEXT PRIMARY KEY, info TEXT NOT NULL, secret_hash TEXT, created_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS oauth_pending (
-  state_hash TEXT PRIMARY KEY, request TEXT NOT NULL, upstream_verifier TEXT NOT NULL, expires_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS oauth_codes (
-  code_hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, challenge TEXT NOT NULL, redirect_uri TEXT NOT NULL,
-  user TEXT NOT NULL, idp_refresh TEXT, expires_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS oauth_tokens (
-  token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('access', 'refresh')),
-  client_id TEXT NOT NULL, family_id TEXT NOT NULL, user_id TEXT NOT NULL, user TEXT NOT NULL,
-  scopes TEXT NOT NULL, idp_refresh TEXT, expires_at INTEGER NOT NULL, used_at INTEGER);
-CREATE INDEX IF NOT EXISTS oauth_tokens_family ON oauth_tokens (family_id);
-CREATE INDEX IF NOT EXISTS oauth_tokens_user ON oauth_tokens (user_id);
-`;
+import { openDatabase } from './database.js';
 
 export const getEpochSeconds = () => Math.floor(Date.now() / 1000);
 
 /** La demande de Claude, gardée le temps de l'aller-retour chez l'IdP. */
-export interface PendingRequest { clientId: string; redirectUri: string; state?: string; codeChallenge: string }
+interface PendingRequest { clientId: string; redirectUri: string; state?: string; codeChallenge: string }
 /** `sealedIdpRefresh` : refresh token de l'IdP, déjà chiffré par l'appelant. */
 export interface StoredCode {
   clientId: string; challenge: string; redirectUri: string; user: User; sealedIdpRefresh?: string; expiresAt: number;
@@ -42,14 +22,12 @@ type TokenRow = Pick<CodeRow, 'client_id' | 'user' | 'idp_refresh' | 'expires_at
   kind: 'access' | 'refresh'; family_id: string; scopes: string; used_at: number | null;
 };
 
+/** Lectures et écritures de l'état OAuth ; ce qui est stocké en clair ou non est décrit dans database.ts. */
 export class OAuthStore {
   private db: Database.Database;
 
   constructor(path: string) {
-    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
-    this.db = new Database(path);
-    this.db.pragma('journal_mode = WAL'); // lectures concurrentes, sauvegarde à chaud possible
-    this.db.exec(SCHEMA);
+    this.db = openDatabase(path);
   }
 
   saveClient(clientId: string, info: object, secret?: string) {

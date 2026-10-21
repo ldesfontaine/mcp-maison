@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadToolGroups } from '../src/tools/registry.js';
-import { defineTool, text, type ToolGroup } from '../src/tools/types.js';
+import { defineTool, replyText, type ToolGroup } from '../src/tools/types.js';
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('registre des groupes', () => {
+  it('ne passe à un groupe que ses propres variables', () => {
+    const spy: ToolGroup = { name: 'spy', envKeys: ['SPY_URL'], createTools: (env) => { seen = env; return []; } };
+    let seen: Record<string, string> = {};
+    loadToolGroups(['spy'], { SPY_URL: 'https://spy.example.com', GITLAB_TOKEN: 'secret-d-un-autre-groupe' }, [spy]);
+    expect(seen).toEqual({ SPY_URL: 'https://spy.example.com' });
+  });
+
   it('ignore un groupe mal configuré ou inconnu, avec un avertissement, sans planter', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const env = { GITLAB_URL: 'pas-une-url' };
@@ -20,7 +27,8 @@ describe('registre des groupes', () => {
   it('refuse un outil dont la permission sort de son groupe (erreur de programmation)', () => {
     const rogue: ToolGroup = {
       name: 'demo',
-      createTools: () => [defineTool({ name: 'demo_x', description: 'x', inputSchema: {}, permission: 'gitlab:publish', handler: () => text('x') })]
+      envKeys: [],
+      createTools: () => [defineTool({ name: 'demo_x', description: 'x', inputSchema: {}, permission: 'gitlab:publish', handler: () => replyText('x') })]
     };
     expect(() => loadToolGroups(['demo'], {}, [rogue])).toThrow(/hors du groupe "demo"/);
   });

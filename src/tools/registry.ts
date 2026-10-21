@@ -6,13 +6,14 @@ import type { Tool, ToolGroup } from './types.js';
 export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup];
 
 export interface LoadedTools {
-  tools: Tool<any>[];
+  tools: Tool[];
   skipped: { group: string; reason: string }[];
 }
 
 /**
  * Charge les groupes demandés par TOOL_GROUPS. Un groupe inconnu ou mal configuré est ignoré avec
- * un avertissement : une intégration en panne ne doit pas couper les autres.
+ * un avertissement : une intégration en panne ne doit pas couper les autres. Chaque groupe ne reçoit
+ * que ses propres variables (envKeys), jamais les secrets des autres.
  */
 export function loadToolGroups(names: string[], env: Record<string, string>, groups = AVAILABLE_GROUPS): LoadedTools {
   const loaded: LoadedTools = { tools: [], skipped: [] };
@@ -22,9 +23,9 @@ export function loadToolGroups(names: string[], env: Record<string, string>, gro
       skipGroup(loaded, name, `groupe inconnu (connus : ${groups.map((g) => g.name).join(', ')})`);
       continue;
     }
-    let tools: Tool<any>[];
+    let tools: Tool[];
     try {
-      tools = group.createTools(env);
+      tools = group.createTools(pickVariables(env, group.envKeys));
     } catch (error) {
       skipGroup(loaded, name, `configuration incomplète : ${(error as Error).message}`);
       continue;
@@ -34,13 +35,17 @@ export function loadToolGroups(names: string[], env: Record<string, string>, gro
   return loaded;
 }
 
+function pickVariables(env: Record<string, string>, keys: string[]): Record<string, string> {
+  return Object.fromEntries(keys.filter((key) => key in env).map((key) => [key, env[key]]));
+}
+
 function skipGroup(loaded: LoadedTools, group: string, reason: string) {
   console.warn(`[outils] groupe "${group}" non chargé : ${reason}`);
   loaded.skipped.push({ group, reason });
 }
 
 // Erreurs de programmation, pas de configuration : on refuse de démarrer.
-function addTool(tools: Tool<any>[], tool: Tool<any>, groupName: string) {
+function addTool(tools: Tool[], tool: Tool, groupName: string) {
   if (tools.some((existing) => existing.name === tool.name)) throw new Error(`outil en double : ${tool.name}`);
   if (!tool.permission.startsWith(`${groupName}:`)) {
     throw new Error(`outil ${tool.name} : permission "${tool.permission}" hors du groupe "${groupName}"`);

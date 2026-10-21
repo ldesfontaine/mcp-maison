@@ -8,10 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { stringify } from 'yaml';
 import { createApp } from '../src/app.js';
-import { loadAuthorizer } from '../src/authorization/permissions-file.js';
 import type { PermissionRules } from '../src/authorization/rules.js';
-import { parseConfig } from '../src/config.js';
-import { loadToolGroups } from '../src/tools/registry.js';
 import { IDP_CLIENT } from './fakes.js';
 
 /** Jetons de développement présents dans chaque serveur de test. */
@@ -34,15 +31,16 @@ export const oidcEnv = (idpUrl: string) => ({
 });
 
 /**
- * Démarre l'application complète. `rules` est écrit dans <dataDir>/permissions.yaml (défaut : tout permis),
- * pour ne jamais dépendre d'un permissions.yaml du poste. `dataDir` permet de redémarrer sur la même base.
+ * Démarre l'application complète, par le même chemin que main.ts. `rules` est écrit dans
+ * <dataDir>/permissions.yaml (défaut : tout permis), pour ne jamais dépendre d'un permissions.yaml du poste.
+ * `dataDir` permet de redémarrer sur la même base.
  */
 export async function startMcp(env: Record<string, string> = {}, options: { rules?: PermissionRules; dataDir?: string } = {}) {
   const srv = await listen();
   const dataDir = options.dataDir ?? tempDir();
   const permissionsFile = join(dataDir, 'permissions.yaml');
   writeFileSync(permissionsFile, stringify(options.rules ?? { everyone: ['*'] }));
-  const fullEnv = {
+  const built = createApp({
     AUTH_DEV_TOKENS: Object.entries(DEV_TOKENS).map(([id, token]) => `${id}:${token}`).join(','),
     TOOL_GROUPS: 'core,gitlab',
     GITLAB_URL: 'https://gitlab.invalid', GITLAB_PROJECT_ID: '42', GITLAB_TOKEN: 'server-token',
@@ -50,10 +48,7 @@ export async function startMcp(env: Record<string, string> = {}, options: { rule
     PERMISSIONS_FILE: permissionsFile, AUDIT_LOG_PATH: join(dataDir, 'audit.jsonl'), DATABASE_PATH: join(dataDir, 'mcp-maison.db'),
     ...(env.OIDC_ISSUER ? { MCP_PUBLIC_URL: srv.url } : {}),
     ...env
-  };
-  const config = parseConfig(fullEnv);
-  const { tools } = loadToolGroups(config.toolGroups, fullEnv);
-  const built = createApp(config, { tools, authorizer: loadAuthorizer(config.PERMISSIONS_FILE) });
+  });
   srv.use(built.app);
   const stop = async () => {
     await built.close();
@@ -82,4 +77,6 @@ export async function callTool(url: string, token: string, name: string, args: R
   }
 }
 
-export const textOf = (result: any): string => result.content.map((item: any) => item.text).join('\n');
+/** Le texte d'un résultat d'outil. */
+export const extractText = (result: Awaited<ReturnType<typeof callTool>>): string =>
+  (result.content as { text?: string }[]).map((item) => item.text ?? '').join('\n');

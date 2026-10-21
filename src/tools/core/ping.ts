@@ -1,4 +1,4 @@
-import { defineTool, text } from '../types.js';
+import { defineTool, replyText } from '../types.js';
 
 // Vérifie la chaîne client -> serveur sans rien toucher d'autre.
 export const pingTool = defineTool({
@@ -7,5 +7,5 @@ export const pingTool = defineTool({
   inputSchema: {},
   permission: 'core:read',
   annotations: { readOnlyHint: true },
-  handler: () => text(`pong — ${new Date().toISOString()}`)
+  handler: () => replyText(`pong — ${new Date().toISOString()}`)
 });

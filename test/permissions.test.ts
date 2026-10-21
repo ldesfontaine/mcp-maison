@@ -5,7 +5,7 @@ import { stringify } from 'yaml';
 import { allowEverything } from '../src/authorization/authorizer.js';
 import { loadAuthorizer } from '../src/authorization/permissions-file.js';
 import { listGrantedPermissions, matchesPermission, rulesGrant, type PermissionRules } from '../src/authorization/rules.js';
-import { callTool, DEV_TOKENS, startMcp, tempDir, textOf } from './helpers.js';
+import { callTool, DEV_TOKENS, extractText, startMcp, tempDir } from './helpers.js';
 
 const rules: PermissionRules = {
   everyone: ['core:read'],
@@ -63,14 +63,14 @@ describe('refus appliqués par le serveur', () => {
   it('outil refusé : erreur MCP lisible, handler non exécuté, ligne d\'audit "denied"', async () => {
     const result = await callTool(mcp.url, BOB, 'gitlab_publish', publishArgs);
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain('Accès refusé : gitlab_publish demande la permission « gitlab:publish », que bob n\'a pas');
+    expect(extractText(result)).toContain('Accès refusé : gitlab_publish demande la permission « gitlab:publish », que bob n\'a pas');
 
     const lines = readFileSync(`${mcp.dataDir}/audit.jsonl`, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     expect(lines.at(-1)).toMatchObject({ user: 'bob', tool: 'gitlab_publish', ok: false, denied: true, error: 'permission gitlab:publish manquante' });
   });
 
   it('whoami liste les outils permis ; /audit exige core:audit', async () => {
-    const bob = JSON.parse(textOf(await callTool(mcp.url, BOB, 'whoami')));
+    const bob = JSON.parse(extractText(await callTool(mcp.url, BOB, 'whoami')));
     expect(bob.allowedTools).toEqual(['ping', 'whoami']);
     expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${BOB}` } })).status).toBe(403);
     const entries = await (await fetch(`${mcp.url}/audit?tool=gitlab_publish`, { headers: { Authorization: `Bearer ${LUCAS}` } })).json();
@@ -81,12 +81,12 @@ describe('refus appliqués par le serveur', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
     rewritePermissions(mcp.permissionsFile, stringify({ ...rules, users: { ...rules.users, bob: ['gitlab:publish'] } }));
-    const bob = JSON.parse(textOf(await callTool(mcp.url, BOB, 'whoami')));
+    const bob = JSON.parse(extractText(await callTool(mcp.url, BOB, 'whoami')));
     expect(bob.allowedTools).toEqual(['ping', 'whoami', 'gitlab_publish']);
 
     rewritePermissions(mcp.permissionsFile, 'users: [pas, une, table]');
     const result = await callTool(mcp.url, BOB, 'gitlab_publish', publishArgs);
-    expect(textOf(result)).not.toContain('Accès refusé'); // échoue plus loin (GitLab injoignable), pas sur les droits
+    expect(extractText(result)).not.toContain('Accès refusé'); // échoue plus loin (GitLab injoignable), pas sur les droits
     expect(error).toHaveBeenCalledWith(expect.stringContaining('règles précédentes conservées'));
   });
 });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { defineTool, fail, text } from '../types.js';
-import { publish } from './api.js';
+import { defineTool, replyError, replyText } from '../types.js';
+import { publishFiles } from './api.js';
 import type { GitlabConfig } from './config.js';
 
 // Chemin relatif sain : pas de "/", "\" ou ".." en tête ou en segment, caractères usuels.
@@ -13,7 +13,7 @@ const safePath = z
     message: 'chemin relatif attendu, sans segment vide, "." ou ".."'
   });
 
-export const slugSchema = z.string().min(2).max(63).regex(/^[a-z0-9-]+$/, 'minuscules, chiffres et tirets uniquement');
+const slugSchema = z.string().min(2).max(63).regex(/^[a-z0-9-]+$/, 'minuscules, chiffres et tirets uniquement');
 
 export function createPublishTool(config: GitlabConfig) {
   return defineTool({
@@ -44,19 +44,19 @@ export function createPublishTool(config: GitlabConfig) {
 
     async handler({ slug, files, message }, { user, logger, note }) {
       const duplicates = files.map((f) => f.path).filter((path, index, all) => all.indexOf(path) !== index);
-      if (duplicates.length) return fail(`Chemins en double : ${[...new Set(duplicates)].join(', ')}`);
+      if (duplicates.length) return replyError(`Chemins en double : ${[...new Set(duplicates)].join(', ')}`);
       try {
-        const result = await publish(config, slug, files, message, { id: user.id, name: user.name, email: user.email });
+        const result = await publishFiles(config, slug, files, message, { id: user.id, name: user.name, email: user.email });
         note({ commitId: result.commitId, commitUrl: result.commitUrl, publicUrl: result.publicUrl, created: result.created.length, updated: result.updated.length });
         logger.info(`publié ${result.publicUrl} (${result.commitId})`);
-        return text([
+        return replyText([
           `Publié : ${result.publicUrl}`,
           `Commit : ${result.commitUrl}`,
           `Par : ${user.id} — Créés : ${result.created.length} — Mis à jour : ${result.updated.length}`,
           '(La page est en ligne une fois la CI du dépôt terminée.)'
         ].join('\n'));
       } catch (error) {
-        return fail(`Échec de la publication : ${(error as Error).message}`);
+        return replyError(`Échec de la publication : ${(error as Error).message}`);
       }
     }
   });

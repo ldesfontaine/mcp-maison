@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { listPublishedSlugs, publish } from '../src/tools/gitlab/api.js';
-import { parseGitlabConfig } from '../src/tools/gitlab/config.js';
+import { listPublishedSlugs, publishFiles } from '../src/tools/gitlab/api.js';
+import { gitlabConfig } from '../src/tools/gitlab/config.js';
 
-const config = parseGitlabConfig({
+const config = gitlabConfig.parse({
   GITLAB_URL: 'https://gitlab.example.com/', GITLAB_PROJECT_ID: 'web/demo', GITLAB_TOKEN: 'glpat-test',
   GITLAB_PUBLISH_BASE_URL: 'https://demo.example.com'
 });
@@ -19,7 +19,7 @@ describe('API GitLab', () => {
       .mockResolvedValueOnce(json({ id: 'abc123', web_url: 'https://gitlab.example.com/web/demo/-/commit/abc123' }, 201));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await publish(config, 'acme', [
+    const result = await publishFiles(config, 'acme', [
       { path: 'index.html', content: '<h1>v2</h1>' },
       { path: 'assets/app.css', content: 'body{}' }
     ], 'maj démo');
@@ -48,7 +48,7 @@ describe('API GitLab', () => {
       .mockResolvedValueOnce(new Response('{"message":"404 Tree Not Found"}', { status: 404 }))
       .mockResolvedValueOnce(json({ id: 'def', web_url: 'u' }, 201));
     vi.stubGlobal('fetch', fetchMock);
-    const result = await publish(config, 'nouveau', [{ path: 'index.html', content: 'x' }]);
+    const result = await publishFiles(config, 'nouveau', [{ path: 'index.html', content: 'x' }]);
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(body.commit_message).toMatch(/^publish\(nouveau\)/);
     expect(result.created).toEqual(['nouveau/index.html']);
@@ -57,7 +57,7 @@ describe('API GitLab', () => {
   it('auteur sans e-mail : "(via id)" dans le message, pas de author_name/author_email', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(json([])).mockResolvedValueOnce(json({ id: 'a1', web_url: 'u' }, 201));
     vi.stubGlobal('fetch', fetchMock);
-    await publish(config, 'x2', [{ path: 'a.html', content: '' }], 'v1', { id: 'bob', name: 'bob' });
+    await publishFiles(config, 'x2', [{ path: 'a.html', content: '' }], 'v1', { id: 'bob', name: 'bob' });
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(body.commit_message).toBe('v1 (via bob)');
     expect(body).not.toHaveProperty('author_email');
@@ -65,7 +65,7 @@ describe('API GitLab', () => {
 
   it('remonte une erreur GitLab lisible', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json([])).mockResolvedValueOnce(new Response('{"message":"403 Forbidden"}', { status: 403 })));
-    await expect(publish(config, 'x1', [{ path: 'a.html', content: '' }])).rejects.toThrow(/GitLab commit 403/);
+    await expect(publishFiles(config, 'x1', [{ path: 'a.html', content: '' }])).rejects.toThrow(/GitLab commit 403/);
   });
 
   it('liste les publications : dossiers racine au nom de slug, sur deux pages', async () => {

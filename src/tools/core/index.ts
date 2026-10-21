@@ -6,5 +6,6 @@ import { whoamiTool } from './whoami.js';
 // Toujours utile, sans configuration.
 export const coreGroup: ToolGroup = {
   name: 'core',
+  envKeys: [],
   createTools: () => [pingTool, whoamiTool, auditRecentTool]
 };

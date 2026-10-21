@@ -3,7 +3,7 @@ import type { User } from '../identity/user.js';
 import { allowEverything, type Authorizer } from './authorizer.js';
 import { parsePermissionRules, rulesGrant, type PermissionRules } from './rules.js';
 
-export const DEFAULT_PERMISSIONS_FILE = './permissions.yaml';
+const DEFAULT_PERMISSIONS_FILE = './permissions.yaml';
 
 /**
  * Choisit l'Authorizer. Fichier absent au chemin par défaut : tout est permis (usage perso).

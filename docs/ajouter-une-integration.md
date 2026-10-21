@@ -15,23 +15,23 @@ src/tools/meteo/
 test/meteo.test.ts   le test, contre un faux service
 ```
 
-`config.ts` : le schéma des variables, et ce que le groupe en garde.
+`config.ts` : les variables du groupe et ce qu'il en garde. `defineGroupConfig` en tire aussi la liste
+des clés : le groupe ne recevra que celles-là, jamais les secrets des autres groupes.
 ```ts
 import { z } from 'zod';
-import { parseGroupConfig } from '../types.js';
+import { defineGroupConfig } from '../types.js';
 
-const schema = z
-  .object({ METEO_URL: z.url(), METEO_API_KEY: z.string().min(16) })
-  .transform((env) => ({ url: env.METEO_URL.replace(/\/+$/, ''), apiKey: env.METEO_API_KEY }));
-
-export type MeteoConfig = z.infer<typeof schema>;
-export const parseMeteoConfig = (env: Record<string, string>) => parseGroupConfig(schema, env);
+export const meteoConfig = defineGroupConfig(
+  { METEO_URL: z.url(), METEO_API_KEY: z.string().min(16) },
+  (env) => ({ url: env.METEO_URL.replace(/\/+$/, ''), apiKey: env.METEO_API_KEY })
+);
+export type MeteoConfig = ReturnType<typeof meteoConfig.parse>;
 ```
 
 `current.ts` : une fabrique qui reçoit la config (jamais lue dans `process.env`).
 ```ts
 import { z } from 'zod';
-import { defineTool, fail, text } from '../types.js';
+import { defineTool, replyError, replyText } from '../types.js';
 import type { MeteoConfig } from './config.js';
 
 export function createCurrentTool(config: MeteoConfig) {
@@ -44,8 +44,8 @@ export function createCurrentTool(config: MeteoConfig) {
     async handler({ city }) {
       const url = `${config.url}/now?city=${encodeURIComponent(city)}`;
       const response = await fetch(url, { headers: { Authorization: `Bearer ${config.apiKey}` } });
-      if (!response.ok) return fail(`Service météo : ${response.status}`);
-      return text(await response.text());
+      if (!response.ok) return replyError(`Service météo : ${response.status}`);
+      return replyText(await response.text());
     }
   });
 }
@@ -54,13 +54,14 @@ export function createCurrentTool(config: MeteoConfig) {
 `index.ts` :
 ```ts
 import type { ToolGroup } from '../types.js';
-import { parseMeteoConfig } from './config.js';
+import { meteoConfig } from './config.js';
 import { createCurrentTool } from './current.js';
 
 export const meteoGroup: ToolGroup = {
   name: 'meteo',
+  envKeys: meteoConfig.envKeys,
   createTools(env) {
-    const config = parseMeteoConfig(env); // lève une erreur si une variable manque
+    const config = meteoConfig.parse(env); // lève une erreur si une variable manque
     return [createCurrentTool(config)];
   }
 };
@@ -77,14 +78,13 @@ Un faux service sur un port libre (`listen`), le serveur complet (`startMcp`), u
 ```ts
 import express from 'express';
 import { expect, it } from 'vitest';
-import { callTool, listen, startMcp, textOf } from './helpers.js';
+import { callTool, DEV_TOKENS, extractText, listen, startMcp } from './helpers.js';
 
 it('meteo_current relaie la réponse du service', async () => {
-  const fake = express().get('/now', (req, res) => void res.send(`soleil à ${req.query.city}`));
-  const service = await listen(fake);
-  const token = 'lucas-token-0123456789';
-  const mcp = await startMcp({ AUTH_DEV_TOKENS: `lucas:${token}`, TOOL_GROUPS: 'core,meteo', METEO_URL: service.url, METEO_API_KEY: 'k'.repeat(16) });
-  expect(textOf(await callTool(mcp.url, token, 'meteo_current', { city: 'Nouméa' }))).toBe('soleil à Nouméa');
+  const service = await listen(express().get('/now', (req, res) => void res.send(`soleil à ${req.query.city}`)));
+  const mcp = await startMcp({ TOOL_GROUPS: 'core,meteo', METEO_URL: service.url, METEO_API_KEY: 'k'.repeat(16) });
+  const result = await callTool(mcp.url, DEV_TOKENS.lucas, 'meteo_current', { city: 'Nouméa' });
+  expect(extractText(result)).toBe('soleil à Nouméa');
   await mcp.stop();
   service.server.close();
 });

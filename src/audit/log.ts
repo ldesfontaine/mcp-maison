@@ -53,16 +53,16 @@ export class AuditLog {
   }
 
   /** Dernières entrées, plus récentes d'abord. Lit tout le fichier : suffisant tant qu'il est tourné (logrotate). */
-  async recent(filter: AuditFilter = {}): Promise<AuditEntry[]> {
+  async listRecent(filter: AuditFilter = {}): Promise<AuditEntry[]> {
     await this.queue;
-    const entries = (await this.readAll()).filter((entry) =>
+    const entries = (await this.readEntries()).filter((entry) =>
       (!filter.slug || entry.args?.slug === filter.slug)
       && (!filter.user || entry.user === filter.user)
       && (!filter.tool || entry.tool === filter.tool));
     return entries.slice(-(filter.limit ?? 20)).reverse();
   }
 
-  private async readAll(): Promise<AuditEntry[]> {
+  private async readEntries(): Promise<AuditEntry[]> {
     let raw: string;
     try {
       raw = await readFile(this.path, 'utf8');

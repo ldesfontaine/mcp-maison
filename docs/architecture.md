@@ -14,16 +14,28 @@ Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core
 ## Les fichiers
 
 ```
-src/server.ts             point d'entrée : config, groupes, droits, écoute
-src/app.ts                HTTP : /health, /audit, /mcp, montage OAuth
-src/mcp-sessions.ts       sessions MCP, chacune liée à la personne qui l'a ouverte
-src/config.ts             variables du cœur validées (zod)
-src/identity/             user.ts (User), dev-tokens.ts, secrets.ts, oauth/ (store SQLite, OIDC)
-src/authorization/        authorizer.ts (interface), rules.ts, permissions-file.ts
-src/audit/log.ts          écriture et lecture du journal
-src/tools/types.ts        contrat Tool, ToolGroup, ToolContext
-src/tools/registry.ts     charge les groupes de TOOL_GROUPS
-src/tools/runner.ts       droit -> exécution -> journal
+src/main.ts                    le processus : createApp, écoute, arrêt propre, erreurs de démarrage
+src/app.ts                     l'assemblage : config, outils, droits, journal, routes /health /audit /mcp
+src/config.ts                  variables du cœur, validées (zod)
+src/mcp-sessions.ts            sessions MCP, chacune liée à la personne qui l'a ouverte
+src/identity/
+  user.ts                      User, et comment le retrouver dans une requête
+  dev-tokens.ts                AUTH_DEV_TOKENS et le vérificateur Bearer
+  secrets.ts                   empreintes, secrets aléatoires, chiffrement
+  oauth/routes.ts              montage du serveur d'autorisation et de /oauth/callback
+  oauth/authorization-server.ts  OAuth 2.1 pour Claude : codes, jetons, rotation
+  oauth/idp-gateway.ts         ce qu'on demande à l'IdP : connexion, renouvellement, comptes autorisés
+  oauth/oidc.ts                client OIDC générique : découverte, token_endpoint, userinfo
+  oauth/clients.ts             clients DCR et vérification de leur secret
+  oauth/database.ts, store.ts  SQLite : schéma, puis lectures et écritures
+src/authorization/
+  authorizer.ts                l'interface Authorizer, seule connue du reste du code
+  rules.ts                     format de permissions.yaml et calcul des droits
+  permissions-file.ts          l'Authorizer qui lit (et relit) permissions.yaml
+src/audit/log.ts, routes.ts    le journal, et GET /audit
+src/tools/types.ts             contrat Tool, ToolGroup, ToolContext, defineGroupConfig
+src/tools/registry.ts          charge les groupes de TOOL_GROUPS
+src/tools/runner.ts            droit -> exécution -> journal
 src/tools/core|gitlab/
 ```
 

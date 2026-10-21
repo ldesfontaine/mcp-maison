@@ -49,7 +49,7 @@ async function listTree(config: GitlabConfig, dir: string, recursive: boolean): 
   return items;
 }
 
-export async function listExistingFiles(config: GitlabConfig, dir: string): Promise<Set<string>> {
+async function listExistingFiles(config: GitlabConfig, dir: string): Promise<Set<string>> {
   const items = await listTree(config, dir, true);
   return new Set(items.filter((item) => item.type === 'blob').map((item) => item.path));
 }
@@ -60,10 +60,10 @@ export async function listPublishedSlugs(config: GitlabConfig): Promise<string[]
   return items.filter((item) => item.type === 'tree' && /^[a-z0-9-]{2,63}$/.test(item.name)).map((item) => item.name).sort();
 }
 
-export const publicUrlOf = (config: GitlabConfig, slug: string) => `${config.publishBaseUrl}/${slug}/`;
+export const buildPublicUrl = (config: GitlabConfig, slug: string) => `${config.publishBaseUrl}/${slug}/`;
 
 /** Un seul commit pour tous les fichiers de <slug>/ : "create" ou "update" selon l'existant, tout ou rien. */
-export async function publish(config: GitlabConfig, slug: string, files: PublishFile[], message?: string, author?: CommitAuthor): Promise<PublishResult> {
+export async function publishFiles(config: GitlabConfig, slug: string, files: PublishFile[], message?: string, author?: CommitAuthor): Promise<PublishResult> {
   const existing = await listExistingFiles(config, slug);
   const created: string[] = [];
   const updated: string[] = [];
@@ -89,5 +89,5 @@ export async function publish(config: GitlabConfig, slug: string, files: Publish
   const response = await callProjectApi(config, '/repository/commits', { method: 'POST', body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`GitLab commit ${response.status}: ${await response.text()}`);
   const commit = (await response.json()) as { id: string; web_url: string };
-  return { publicUrl: publicUrlOf(config, slug), commitUrl: commit.web_url, commitId: commit.id, created, updated };
+  return { publicUrl: buildPublicUrl(config, slug), commitUrl: commit.web_url, commitId: commit.id, created, updated };
 }

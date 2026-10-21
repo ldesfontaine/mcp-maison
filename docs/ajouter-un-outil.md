@@ -6,7 +6,7 @@ Un outil = un fichier dans le dossier de son groupe, puis une ligne dans le `ind
 
 ```ts
 import { z } from 'zod';
-import { defineTool, text } from '../types.js';
+import { defineTool, replyText } from '../types.js';
 
 export const helloTool = defineTool({
   name: 'hello',
@@ -19,7 +19,7 @@ export const helloTool = defineTool({
   annotations: { readOnlyHint: true },
   handler: ({ name }, { user, note }) => {
     note({ greeted: name }); // ajouté à la ligne de journal
-    return text(`Bonjour ${name}, de la part de ${user.name ?? user.id} !`);
+    return replyText(`Bonjour ${name}, de la part de ${user.name ?? user.id} !`);
   }
 });
 ```
@@ -37,7 +37,7 @@ Puis dans `src/tools/core/index.ts` : `createTools: () => [pingTool, whoamiTool,
 | `auditArgs` | Résumé des arguments pour le journal, dès qu'un argument est gros ou sensible |
 | `handler(args, ctx)` | `ctx = { user, logger, audit, allowedTools, note }` |
 
-- `fail('message')` pour une erreur métier : Claude la lit et peut corriger ; journalisée `ok:false`.
+- `replyText('…')` pour la réponse, `replyError('message')` pour une erreur métier : Claude la lit et peut corriger ; journalisée `ok:false`.
 - Une exception devient « Erreur interne : … », journalisée aussi.
 - La config (URL, jeton) arrive par la fabrique du groupe, pas par `ctx` : voir `ajouter-une-integration.md`.
 - Choisir une permission existante, ou en créer une (`gitlab:delete`…) et la documenter dans `permissions.example.yaml`.
@@ -45,7 +45,9 @@ Puis dans `src/tools/core/index.ts` : `createTools: () => [pingTool, whoamiTool,
 ## Tester
 
 ```bash
-npm test                       # toute la suite
+npm run check                  # lint + build + tests : à lancer avant chaque commit
 npx vitest run test/permissions.test.ts
 ```
-`test/helpers.ts` démarre le serveur complet (`startMcp`) et appelle un outil comme Claude (`callTool`).
+`test/helpers.ts` démarre le serveur complet (`startMcp`, par le même `createApp` que la production) et appelle
+un outil comme Claude (`callTool`), avec un jeton de développement (`DEV_TOKENS.lucas`, `DEV_TOKENS.bob`).
+`startMcp({}, { rules })` écrit un `permissions.yaml` pour le test.

@@ -5,7 +5,7 @@ Il répond à trois questions, chacune dans son dossier :
 
 | Question | Dossier | Ce qu'il fait |
 | --- | --- | --- |
-| Qui appelle ? | `src/identity/` | Jetons fixes (`tokens.ts`) ou serveur OAuth 2.1 qui délègue la connexion à un IdP (`oauth/`) |
+| Qui appelle ? | `src/identity/` | Serveur OAuth 2.1 qui délègue la connexion à un IdP OIDC (`oauth/`) ; jetons de dev hors production |
 | Qui peut quoi ? | `src/authorization/` | `permissions.yaml` : personnes et groupes → permissions |
 | Qu'a-t-on fait ? | `src/audit/` | Journal JSON Lines, une ligne par appel, refus compris |
 
@@ -18,7 +18,7 @@ src/server.ts             point d'entrée : config, groupes, droits, écoute
 src/app.ts                HTTP : /health, /audit, /mcp, montage OAuth
 src/mcp-sessions.ts       sessions MCP, chacune liée à la personne qui l'a ouverte
 src/config.ts             variables du cœur validées (zod)
-src/identity/             types.ts (User), tokens.ts, store.ts (SQLite), oauth/
+src/identity/             user.ts (User), dev-tokens.ts, secrets.ts, oauth/ (store SQLite, OIDC)
 src/authorization/        permissions.ts
 src/audit/log.ts          écriture et lecture du journal
 src/tools/types.ts        contrat Tool, ToolGroup, ToolContext
@@ -27,13 +27,13 @@ src/tools/runner.ts       droit -> exécution -> journal
 src/tools/core|gitlab/
 ```
 
-## Connexion (mode oauth)
+## Connexion (OIDC)
 
 ```mermaid
 sequenceDiagram
     participant C as Claude
     participant M as mcp-maison
-    participant I as IdP (GitLab, Keycloak…)
+    participant I as IdP OIDC (GitLab, Keycloak…)
     participant DB as SQLite
     C->>M: POST /mcp sans jeton
     M-->>C: 401 + adresse de la métadonnée
@@ -45,7 +45,7 @@ sequenceDiagram
     M-->>C: 302 vers l'IdP (PKCE aussi)
     C->>I: la personne se connecte
     I-->>M: GET /oauth/callback?code
-    M->>I: échange du code, lecture de l'identité et des groupes
+    M->>I: échange du code (token_endpoint), puis userinfo : identité et groupes
     Note over M: le jeton de l'IdP est jeté, seule l'identité reste
     M->>DB: code d'autorisation haché (5 min)
     M-->>C: 302 vers claude.ai avec le code
@@ -54,7 +54,7 @@ sequenceDiagram
     M-->>C: jetons
 ```
 
-En mode `tokens`, rien de tout ça : le Bearer est cherché par son empreinte dans `MCP_TOKENS`.
+Avec `AUTH_DEV_TOKENS` (hors production), rien de tout ça : le Bearer est cherché par son empreinte.
 
 ## Appel d'outil et audit
 

@@ -83,7 +83,7 @@ it('meteo_current relaie la réponse du service', async () => {
   const fake = express().get('/now', (req, res) => void res.send(`soleil à ${req.query.city}`));
   const service = await listen(fake);
   const token = 'lucas-token-0123456789';
-  const mcp = await startMcp({ MCP_TOKENS: `lucas:${token}`, TOOL_GROUPS: 'core,meteo', METEO_URL: service.url, METEO_API_KEY: 'k'.repeat(16) });
+  const mcp = await startMcp({ AUTH_DEV_TOKENS: `lucas:${token}`, TOOL_GROUPS: 'core,meteo', METEO_URL: service.url, METEO_API_KEY: 'k'.repeat(16) });
   expect(textOf(await callTool(mcp.url, token, 'meteo_current', { city: 'Nouméa' }))).toBe('soleil à Nouméa');
   await mcp.stop();
   service.server.close();

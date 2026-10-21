@@ -1,16 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fakeGitlab } from './fakes.js';
-import { callTool, listen, startMcp, textOf } from './helpers.js';
+import { fakeOidc } from './fakes.js';
+import { callTool, listen, oidcEnv, startMcp, textOf } from './helpers.js';
 import { obtainTokens } from './oauth-helpers.js';
 
-let gitlabServer: Awaited<ReturnType<typeof listen>>;
-beforeAll(async () => { gitlabServer = await listen(fakeGitlab().app); });
-afterAll(() => gitlabServer.server.close());
+let idpServer: Awaited<ReturnType<typeof listen>>;
+beforeAll(async () => { idpServer = await listen(fakeOidc({ sub: '7', preferred_username: 'lucas' }).app); });
+afterAll(() => idpServer.server.close());
 
-const oauthEnv = () => ({
-  AUTH_MODE: 'oauth', OAUTH_ISSUER: gitlabServer.url, OAUTH_CLIENT_ID: 'idp-app-id', OAUTH_CLIENT_SECRET: 'idp-app-secret'
-});
+const oauthEnv = () => oidcEnv(idpServer.url);
 
 const readDatabaseFiles = (dataDir: string) => ['mcp-maison.db', 'mcp-maison.db-wal']
   .map((name) => `${dataDir}/${name}`)
@@ -21,12 +19,12 @@ const readDatabaseFiles = (dataDir: string) => ['mcp-maison.db', 'mcp-maison.db-
 describe('persistance SQLite', () => {
   it('jetons et clients survivent à un redémarrage ; rien de secret en clair dans la base', async () => {
     const first = await startMcp(oauthEnv());
-    const { tokens, client } = await obtainTokens(first.url, gitlabServer.url, { confidential: true });
+    const { tokens, client } = await obtainTokens(first.url, idpServer.url, { confidential: true });
     await first.stop();
 
     // Même dossier de données, nouveau processus : l'access token et le client DCR sont toujours connus.
     const second = await startMcp(oauthEnv(), { dataDir: first.dataDir });
-    expect(JSON.parse(textOf(await callTool(second.url, tokens.access_token, 'whoami')))).toMatchObject({ id: 'lucas', provider: 'gitlab' });
+    expect(JSON.parse(textOf(await callTool(second.url, tokens.access_token, 'whoami')))).toMatchObject({ id: 'lucas', provider: 'oidc' });
 
     const metadata = await (await fetch(`${second.url}/.well-known/oauth-authorization-server`)).json();
     const refreshed = await fetch(metadata.token_endpoint, {

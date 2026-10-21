@@ -1,74 +1,95 @@
 import { z } from 'zod';
-import { parseTokens } from './identity/tokens.js';
+import { parseDevTokens } from './identity/dev-tokens.js';
 
 // Configuration du cœur, validée une fois au démarrage. Chaque groupe d'outils valide la sienne
 // (src/tools/<groupe>/config.ts) : un groupe mal configuré est ignoré, le serveur démarre quand même.
-const list = (value?: string) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+const splitList = (value?: string) => (value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
-const schema = z
-  .object({
-    // --- Serveur ---
-    PORT: z.coerce.number().int().positive().default(3000),
-    HOST: z.string().default('0.0.0.0'),
-    ALLOWED_HOSTS: z.string().optional(), // anti DNS rebinding : "mcp.example.com,localhost"
-    MAX_BODY: z.string().default('10mb'),
-    TRUST_PROXY: z.string().optional(), // "1" derrière un reverse proxy
+const coreEnv = z.object({
+  NODE_ENV: z.string().optional(), // "production" interdit AUTH_DEV_TOKENS
 
-    // --- Identité ---
-    AUTH_MODE: z.enum(['tokens', 'oauth']).default('tokens'),
-    MCP_TOKENS: z.string().optional(), // "lucas:<token>,bob:<token>"
-    MCP_PUBLIC_URL: z.url().optional(), // URL publique de CE serveur, sans /mcp
-    OAUTH_PROVIDER: z.enum(['gitlab', 'oidc']).default('gitlab'),
-    OAUTH_ISSUER: z.url().optional(), // gitlab : URL de l'instance ; oidc : issuer
-    OAUTH_CLIENT_ID: z.string().optional(),
-    OAUTH_CLIENT_SECRET: z.string().optional(),
-    OAUTH_SCOPES: z.string().optional(), // oidc seulement ; défaut "openid profile email"
-    OAUTH_GROUPS_CLAIM: z.string().default('groups'), // oidc seulement
-    OAUTH_ALLOWED_USERS: z.string().optional(),
-    OAUTH_ALLOWED_GROUPS: z.string().optional(),
+  // --- Serveur ---
+  PORT: z.coerce.number().int().positive().default(3000),
+  HOST: z.string().default('0.0.0.0'),
+  ALLOWED_HOSTS: z.string().optional(), // anti DNS rebinding : "mcp.example.com,localhost"
+  MAX_BODY: z.string().default('10mb'),
+  TRUST_PROXY: z.string().optional(), // "1" derrière un reverse proxy
 
-    // --- Données ---
-    DATABASE_PATH: z.string().default('./data/mcp-maison.db'),
-    AUDIT_LOG_PATH: z.string().default('./data/audit.jsonl'),
-    PERMISSIONS_FILE: z.string().optional(), // absent : ./permissions.yaml s'il existe, sinon tout est permis
+  // --- Identité : OIDC (production) ---
+  MCP_PUBLIC_URL: z.url().optional(), // URL publique de CE serveur, sans /mcp
+  OIDC_ISSUER: z.url().optional(),
+  OIDC_CLIENT_ID: z.string().optional(),
+  OIDC_CLIENT_SECRET: z.string().optional(),
+  OIDC_SCOPES: z.string().default('openid profile email'),
+  OIDC_GROUPS_CLAIM: z.string().default('groups'),
+  OIDC_ALLOWED_USERS: z.string().optional(),
+  OIDC_ALLOWED_GROUPS: z.string().optional(),
 
-    // --- Outils ---
-    TOOL_GROUPS: z.string().default('core')
-  })
-  .superRefine((config, ctx) => {
-    const requireKey = (key: keyof typeof config, why: string) => {
-      if (!config[key]) ctx.addIssue({ code: 'custom', path: [key], message: `requis ${why}` });
-    };
-    if (config.MCP_TOKENS) {
-      try {
-        parseTokens(config.MCP_TOKENS);
-      } catch (error) {
-        ctx.addIssue({ code: 'custom', path: ['MCP_TOKENS'], message: (error as Error).message });
-      }
-    }
-    if (config.AUTH_MODE === 'tokens') requireKey('MCP_TOKENS', 'en AUTH_MODE=tokens');
-    if (config.AUTH_MODE === 'oauth') {
-      for (const key of ['MCP_PUBLIC_URL', 'OAUTH_ISSUER', 'OAUTH_CLIENT_ID', 'OAUTH_CLIENT_SECRET'] as const) {
-        requireKey(key, 'en AUTH_MODE=oauth');
-      }
-    }
-  })
-  .transform((config) => ({
-    ...config,
-    allowedHosts: list(config.ALLOWED_HOSTS),
-    allowedUsers: list(config.OAUTH_ALLOWED_USERS),
-    allowedGroups: list(config.OAUTH_ALLOWED_GROUPS),
-    toolGroups: list(config.TOOL_GROUPS)
-  }));
+  // --- Identité : jetons de développement (jamais en production) ---
+  AUTH_DEV_TOKENS: z.string().optional(), // "lucas:<jeton>,bob:<jeton>"
+
+  // --- Données ---
+  DATABASE_PATH: z.string().default('./data/mcp-maison.db'),
+  AUDIT_LOG_PATH: z.string().default('./data/audit.jsonl'),
+  PERMISSIONS_FILE: z.string().optional(), // absent : ./permissions.yaml s'il existe, sinon tout est permis
+
+  // --- Outils ---
+  TOOL_GROUPS: z.string().default('core')
+});
+
+/** Les variables lues par le cœur (un test vérifie que .env.example les liste toutes, et rien d'autre). */
+export const CORE_ENV_KEYS = Object.keys(coreEnv.shape);
+
+const OIDC_REQUIRED = ['MCP_PUBLIC_URL', 'OIDC_ISSUER', 'OIDC_CLIENT_ID', 'OIDC_CLIENT_SECRET'] as const;
+type CoreEnv = z.infer<typeof coreEnv>;
+
+function checkIdentity(env: CoreEnv, ctx: z.RefinementCtx) {
+  const report = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
+  const oidcStarted = OIDC_REQUIRED.some((key) => env[key]);
+  if (oidcStarted) for (const key of OIDC_REQUIRED) if (!env[key]) report(key, 'requis pour la connexion OIDC');
+  if (!oidcStarted && !env.AUTH_DEV_TOKENS) {
+    report('OIDC_ISSUER', 'aucune identité configurée : OIDC_* (production) ou AUTH_DEV_TOKENS (développement)');
+  }
+  if (!env.AUTH_DEV_TOKENS) return;
+  if (env.NODE_ENV === 'production') report('AUTH_DEV_TOKENS', 'interdit avec NODE_ENV=production : utiliser OIDC_*');
+  try {
+    parseDevTokens(env.AUTH_DEV_TOKENS);
+  } catch (error) {
+    report('AUTH_DEV_TOKENS', (error as Error).message);
+  }
+}
+
+function buildOidcSettings(env: CoreEnv) {
+  if (!env.OIDC_ISSUER) return undefined;
+  return {
+    publicUrl: env.MCP_PUBLIC_URL!,
+    issuer: env.OIDC_ISSUER,
+    clientId: env.OIDC_CLIENT_ID!,
+    clientSecret: env.OIDC_CLIENT_SECRET!,
+    scopes: env.OIDC_SCOPES,
+    groupsClaim: env.OIDC_GROUPS_CLAIM,
+    allowedUsers: splitList(env.OIDC_ALLOWED_USERS),
+    allowedGroups: splitList(env.OIDC_ALLOWED_GROUPS)
+  };
+}
+
+const schema = coreEnv.superRefine(checkIdentity).transform((env) => ({
+  ...env,
+  allowedHosts: splitList(env.ALLOWED_HOSTS),
+  toolGroups: splitList(env.TOOL_GROUPS),
+  oidc: buildOidcSettings(env),
+  devUsers: env.AUTH_DEV_TOKENS ? parseDevTokens(env.AUTH_DEV_TOKENS) : new Map()
+}));
 
 export type Config = z.infer<typeof schema>;
+export type OidcConfig = NonNullable<Config['oidc']>;
 
 /** Une variable vide ("FOO=") compte comme absente : c'est ce qu'on attend d'un .env à moitié rempli. */
 export function withoutEmptyValues(env: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => !!entry[1]));
 }
 
-/** Valide l'environnement ; lève une erreur qui liste tout ce qui ne va pas. */
+/** Valide l'environnement ; lève une erreur qui liste tout ce qui ne va pas, sans aucune valeur. */
 export function parseConfig(env: NodeJS.ProcessEnv): Config {
   const parsed = schema.safeParse(withoutEmptyValues(env));
   if (parsed.success) return parsed.data;

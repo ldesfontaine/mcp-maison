@@ -3,7 +3,8 @@
 Serveur MCP distant, multi-utilisateurs, à outils enfichables. À brancher comme connecteur dans Claude
 (claude.ai, desktop, Cowork), en perso ou pour une organisation entière.
 
-- **Qui appelle** : un jeton par personne, ou connexion OAuth via GitLab ou tout IdP OpenID Connect.
+- **Qui appelle** : connexion via n'importe quel IdP OpenID Connect (GitLab, Keycloak, Authentik…).
+  Des jetons de développement servent aux tests et au poste local, jamais en production.
 - **Qui peut quoi** : `permissions.yaml`, par personne et par groupe. Absent : tout le monde a tout.
 - **Qu'a-t-on fait** : un journal JSON Lines, une ligne par appel, refus compris.
 
@@ -22,7 +23,7 @@ set -a; . ./.env; set +a; npm run dev
 ## Docs
 
 - [Architecture](docs/architecture.md) : les dossiers, les flux, les choix
-- [Identité](docs/identite.md) : tokens ou oauth, GitLab, OIDC, Redmine, claude.ai Team
+- [Identité](docs/identite.md) : OIDC (exemples GitLab, Keycloak, Authentik), jetons de dev, claude.ai Team
 - [Droits](docs/droits.md) : `permissions.yaml`
 - [Ajouter un outil](docs/ajouter-un-outil.md)
 - [Ajouter une intégration](docs/ajouter-une-integration.md)

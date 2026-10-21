@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Prioritaire sur .env : jamais de jetons de développement dans ce conteneur.
+      NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_PATH: /app/data/mcp-maison.db

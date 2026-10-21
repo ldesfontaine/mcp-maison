@@ -1,9 +1,12 @@
-import { createApp } from './app.js';
+import { createApp, describeIdentity } from './app.js';
 import { createAuthorizer, loadPermissionRules } from './authorization/permissions.js';
 import { loadConfig, withoutEmptyValues } from './config.js';
 import { loadToolGroups } from './tools/registry.js';
 
 const config = loadConfig();
+if (config.devUsers.size) {
+  console.warn('[identité] AUTH_DEV_TOKENS actif : jetons de développement acceptés. Interdit en production (NODE_ENV=production).');
+}
 const { tools } = loadToolGroups(config.toolGroups, withoutEmptyValues(process.env));
 
 let rules;
@@ -19,7 +22,7 @@ const { app, close } = createApp(config, { tools, authorize: createAuthorizer(ru
 
 const httpServer = app.listen(config.PORT, config.HOST, () => {
   const names = tools.map((tool) => tool.name).join(', ') || 'aucun';
-  console.log(`mcp-maison prêt sur http://${config.HOST}:${config.PORT}/mcp — auth : ${config.AUTH_MODE} — outils : ${names}`);
+  console.log(`mcp-maison prêt sur http://${config.HOST}:${config.PORT}/mcp — identité : ${describeIdentity(config).join(' + ')} — outils : ${names}`);
 });
 
 // Arrêt propre (docker stop) : sessions fermées, base SQLite refermée.

@@ -6,7 +6,7 @@
 everyone:            # toute personne connectée
   - core:read        # ping, whoami
 
-users:               # par identifiant (username GitLab, preferred_username OIDC, ou id de MCP_TOKENS)
+users:               # par identifiant (preferred_username OIDC, ou id de AUTH_DEV_TOKENS)
   lucas: ["*"]
 
 groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/dev")

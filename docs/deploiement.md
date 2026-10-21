@@ -3,7 +3,7 @@
 ## En local
 
 ```bash
-cp .env.example .env          # MCP_TOKENS, GITLAB_*
+cp .env.example .env          # AUTH_DEV_TOKENS, GITLAB_*
 npm install
 set -a; . ./.env; set +a
 npm run dev                   # rechargement auto
@@ -49,7 +49,7 @@ labels:
 Puis dans `.env` :
 - `TRUST_PROXY=1` : l'adresse du client vient de `X-Forwarded-For` (limites de débit).
 - `ALLOWED_HOSTS=mcp.example.com` : refuse les autres `Host` (DNS rebinding).
-- `MCP_PUBLIC_URL=https://mcp.example.com` en mode oauth : sert aux métadonnées et au callback.
+- `MCP_PUBLIC_URL=https://mcp.example.com` : sert aux métadonnées OAuth et au callback OIDC.
 
 Ne pas mettre d'authentification du proxy devant `/mcp`, `/.well-known/…`, `/register`, `/authorize`,
 `/token`, `/revoke`, `/oauth/callback` : Claude doit les atteindre. `/health` peut rester interne.
@@ -60,9 +60,9 @@ Tout est dans `.env.example`, commenté. L'essentiel :
 
 | Variable | Rôle |
 | --- | --- |
-| `AUTH_MODE` | `tokens` ou `oauth` (`identite.md`) |
-| `MCP_TOKENS` | `id:jeton,…` |
-| `MCP_PUBLIC_URL`, `OAUTH_*` | Mode oauth |
+| `MCP_PUBLIC_URL`, `OIDC_*` | Connexion OIDC (`identite.md`) |
+| `AUTH_DEV_TOKENS` | `id:jeton,…`, hors production seulement |
+| `NODE_ENV` | `production` en déploiement (fixé par Docker) |
 | `TOOL_GROUPS` | `core,gitlab` |
 | `GITLAB_*` | Groupe gitlab |
 | `PERMISSIONS_FILE` | Droits (`droits.md`) |

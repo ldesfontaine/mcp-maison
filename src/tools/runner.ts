@@ -3,7 +3,7 @@ import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/proto
 import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/permissions.js';
-import { userFromAuth, type User } from '../identity/types.js';
+import { getUserFromAuth, type User } from '../identity/user.js';
 import { fail, type Logger, type Tool, type ToolContext } from './types.js';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -24,7 +24,7 @@ export function buildMcpServer(deps: RunnerDependencies): McpServer {
     server.registerTool(
       tool.name,
       { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: tool.annotations },
-      (args: any, extra: Extra) => runTool(tool, args ?? {}, userFromAuth(extra.authInfo), deps)
+      (args: any, extra: Extra) => runTool(tool, args ?? {}, getUserFromAuth(extra.authInfo), deps)
     );
   }
   return server;

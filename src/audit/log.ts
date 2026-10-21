@@ -6,7 +6,7 @@ export interface AuditEntry {
   ts: string; // ISO 8601
   user: string; // User.id
   userName?: string;
-  provider: string; // token | gitlab | oidc
+  provider: string; // oidc | dev-token
   tool: string;
   args: Record<string, unknown>; // arguments résumés
   result?: Record<string, unknown>; // détails ajoutés par l'outil (ex. commitId)

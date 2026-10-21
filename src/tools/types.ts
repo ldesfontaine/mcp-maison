@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { AuditLog } from '../audit/log.js';
-import type { User } from '../identity/types.js';
+import type { User } from '../identity/user.js';
 
 export interface Logger {
   info(message: string, data?: unknown): void;

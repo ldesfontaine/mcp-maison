@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { userFromAuth } from './identity/types.js';
+import { getUserFromAuth } from './identity/user.js';
 
 const IDLE_MS = 30 * 60_000;
 const MAX_SESSIONS = 500;
@@ -27,13 +27,13 @@ export function createMcpSessions(newServer: () => McpServer) {
   const findOwnSession = (req: Request): Session | undefined => {
     const id = req.headers['mcp-session-id'];
     const session = typeof id === 'string' ? sessions.get(id) : undefined;
-    if (!session || session.userId !== userFromAuth(req.auth).id) return undefined;
+    if (!session || session.userId !== getUserFromAuth(req.auth).id) return undefined;
     session.lastActive = Date.now();
     return session;
   };
 
   const openSession = async (req: Request, res: Response) => {
-    const userId = userFromAuth(req.auth).id;
+    const userId = getUserFromAuth(req.auth).id;
     const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       enableJsonResponse: true, // réponses JSON simples, pas de flux SSE sur POST

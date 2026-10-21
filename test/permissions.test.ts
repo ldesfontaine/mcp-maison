@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAuthorizer, grantedPermissions, permissionMatches, type PermissionRules } from '../src/authorization/permissions.js';
-import { callTool, startMcp, textOf } from './helpers.js';
+import { callTool, DEV_TOKENS, startMcp, textOf } from './helpers.js';
 
 const rules: PermissionRules = {
   everyone: ['core:read'],
@@ -18,7 +18,7 @@ describe('règles de droits', () => {
   });
 
   it('cumule everyone, l\'utilisateur et ses groupes', () => {
-    const user = { id: 'marie', provider: 'gitlab', groups: ['exemple/dev'] };
+    const user = { id: 'marie', provider: 'oidc' as const, groups: ['exemple/dev'] };
     expect(grantedPermissions(rules, user)).toEqual(['core:read', 'gitlab:*']);
     const authorize = createAuthorizer(rules);
     expect(authorize(user, 'gitlab:publish')).toBe(true);
@@ -26,16 +26,15 @@ describe('règles de droits', () => {
   });
 
   it('sans fichier de règles, tout est permis (comportement du POC)', () => {
-    expect(createAuthorizer(undefined)({ id: 'x', provider: 'token' }, 'gitlab:publish')).toBe(true);
+    expect(createAuthorizer(undefined)({ id: 'x', provider: 'dev-token' }, 'gitlab:publish')).toBe(true);
   });
 });
 
-const LUCAS = 'lucas-token-0123456789abcdef';
-const BOB = 'bob-token-0123456789abcdef';
+const { lucas: LUCAS, bob: BOB } = DEV_TOKENS;
 let mcp: Awaited<ReturnType<typeof startMcp>>;
 
 beforeAll(async () => {
-  mcp = await startMcp({ AUTH_MODE: 'tokens', MCP_TOKENS: `lucas:${LUCAS},bob:${BOB}` }, { rules });
+  mcp = await startMcp({}, { rules });
 });
 afterAll(() => mcp.stop());
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import type { User } from '../identity/types.js';
+import type { User } from '../identity/user.js';
 
 // Une permission s'écrit "groupe:action" (ex. "gitlab:publish"). Dans permissions.yaml,
 // "*" donne tout, "gitlab:*" donne toutes les actions du groupe gitlab.

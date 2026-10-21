@@ -5,8 +5,8 @@ import { AuditLog } from './audit/log.js';
 import type { Authorizer } from './authorization/permissions.js';
 import type { Config } from './config.js';
 import { mountOAuth } from './identity/oauth/routes.js';
-import { createTokenVerifier, parseTokens } from './identity/tokens.js';
-import { userFromAuth, type User } from './identity/types.js';
+import { createBearerVerifier } from './identity/dev-tokens.js';
+import { getUserFromAuth } from './identity/user.js';
 import { createMcpSessions } from './mcp-sessions.js';
 import { buildMcpServer } from './tools/runner.js';
 import type { Tool } from './tools/types.js';
@@ -18,7 +18,12 @@ export interface AppDependencies {
 
 const AUDIT_PERMISSION = 'core:audit';
 
-/** L'application HTTP complète : /health, /audit, /mcp et, en mode oauth, le serveur d'autorisation. */
+/** Les moyens d'identification actifs, pour /health et le journal de démarrage. */
+export function describeIdentity(config: Config): string[] {
+  return [...(config.oidc ? ['oidc'] : []), ...(config.devUsers.size ? ['dev-tokens'] : [])];
+}
+
+/** L'application HTTP complète : /health, /audit, /mcp et, si OIDC est configuré, le serveur d'autorisation. */
 export function createApp(config: Config, deps: AppDependencies) {
   const audit = new AuditLog(config.AUDIT_LOG_PATH);
   const app = express();
@@ -29,20 +34,19 @@ export function createApp(config: Config, deps: AppDependencies) {
 
   // Pas d'authentification ici : rien de sensible, juste de quoi superviser.
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', auth: config.AUTH_MODE, tools: deps.tools.map((tool) => tool.name), sessions: mcp.sessions.size });
+    res.json({ status: 'ok', identity: describeIdentity(config), tools: deps.tools.map((tool) => tool.name), sessions: mcp.sessions.size });
   });
 
-  const oauth = config.AUTH_MODE === 'oauth' ? mountOAuth(app, config) : undefined;
-  const statics = config.MCP_TOKENS ? parseTokens(config.MCP_TOKENS) : new Map<string, User>();
+  const oauth = config.oidc ? mountOAuth(app, config.oidc, config.DATABASE_PATH) : undefined;
   const bearer = requireBearerAuth({
-    verifier: createTokenVerifier(statics, oauth?.server, oauth?.resource),
+    verifier: createBearerVerifier(config.devUsers, oauth?.server, oauth?.resource),
     resourceMetadataUrl: oauth?.resourceMetadataUrl,
     expectedResource: oauth?.resource
   });
 
   // Le journal, lisible hors de Claude, avec la même permission que l'outil audit_recent.
   app.get('/audit', bearer, async (req, res) => {
-    const user = userFromAuth(req.auth);
+    const user = getUserFromAuth(req.auth);
     if (!deps.authorize(user, AUDIT_PERMISSION)) {
       return void res.status(403).json({ error: `permission ${AUDIT_PERMISSION} manquante pour ${user.id}` });
     }

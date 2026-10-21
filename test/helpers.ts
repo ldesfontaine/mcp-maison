@@ -10,6 +10,10 @@ import { createApp } from '../src/app.js';
 import { createAuthorizer, type PermissionRules } from '../src/authorization/permissions.js';
 import { parseConfig } from '../src/config.js';
 import { loadToolGroups } from '../src/tools/registry.js';
+import { IDP_CLIENT } from './fakes.js';
+
+/** Jetons de développement présents dans chaque serveur de test. */
+export const DEV_TOKENS = { lucas: 'lucas-token-0123456789abcdef', bob: 'bob-token-0123456789abcdef' };
 
 /** Serveur HTTP sur un port libre ; le handler peut être branché après coup (l'URL doit être connue avant). */
 export async function listen(app?: Express): Promise<{ server: Server; url: string; use: (a: Express) => void }> {
@@ -22,16 +26,22 @@ export async function listen(app?: Express): Promise<{ server: Server; url: stri
 
 export const tempDir = () => mkdtempSync(join(tmpdir(), 'mcp-maison-'));
 
+/** Variables OIDC pour un faux IdP (fakeOidc) écoutant sur idpUrl. */
+export const oidcEnv = (idpUrl: string) => ({
+  OIDC_ISSUER: `${idpUrl}/realms/test`, OIDC_CLIENT_ID: IDP_CLIENT.id, OIDC_CLIENT_SECRET: IDP_CLIENT.secret
+});
+
 /** Démarre l'application complète. `dataDir` permet de redémarrer sur la même base. */
-export async function startMcp(env: Record<string, string>, options: { rules?: PermissionRules; dataDir?: string; url?: string } = {}) {
+export async function startMcp(env: Record<string, string> = {}, options: { rules?: PermissionRules; dataDir?: string } = {}) {
   const srv = await listen();
   const dataDir = options.dataDir ?? tempDir();
   const fullEnv = {
+    AUTH_DEV_TOKENS: Object.entries(DEV_TOKENS).map(([id, token]) => `${id}:${token}`).join(','),
     TOOL_GROUPS: 'core,gitlab',
     GITLAB_URL: 'https://gitlab.invalid', GITLAB_PROJECT_ID: '42', GITLAB_TOKEN: 'server-token',
     GITLAB_PUBLISH_BASE_URL: 'https://demo.invalid',
     AUDIT_LOG_PATH: join(dataDir, 'audit.jsonl'), DATABASE_PATH: join(dataDir, 'mcp-maison.db'),
-    ...(env.AUTH_MODE === 'oauth' ? { MCP_PUBLIC_URL: srv.url } : {}),
+    ...(env.OIDC_ISSUER ? { MCP_PUBLIC_URL: srv.url } : {}),
     ...env
   };
   const config = parseConfig(fullEnv);

@@ -1,17 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { callTool, mcpClient, startMcp, textOf } from './helpers.js';
+import { callTool, DEV_TOKENS, mcpClient, startMcp, textOf } from './helpers.js';
 
-const LUCAS = 'lucas-token-0123456789abcdef';
-const BOB = 'bob-token-0123456789abcdef';
+const { lucas: LUCAS, bob: BOB } = DEV_TOKENS;
 let mcp: Awaited<ReturnType<typeof startMcp>>;
 
-beforeAll(async () => {
-  mcp = await startMcp({ AUTH_MODE: 'tokens', MCP_TOKENS: `lucas:${LUCAS},bob:${BOB}` });
-});
+beforeAll(async () => { mcp = await startMcp(); });
 afterAll(() => mcp.stop());
 
-describe('AUTH_MODE=tokens', () => {
-  it('refuse un appel sans token ou avec un token inconnu (401)', async () => {
+describe('AUTH_DEV_TOKENS', () => {
+  it('refuse un appel sans jeton ou avec un jeton inconnu (401)', async () => {
     for (const authorization of [undefined, 'Bearer inconnu-0123456789abcdef']) {
       const response = await fetch(`${mcp.url}/mcp`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) }, body: '{}'
@@ -20,15 +17,15 @@ describe('AUTH_MODE=tokens', () => {
     }
   });
 
-  it('résout chaque token en identité (whoami) et journalise sans le token', async () => {
-    expect(JSON.parse(textOf(await callTool(mcp.url, LUCAS, 'whoami')))).toMatchObject({ id: 'lucas', provider: 'token' });
-    expect(JSON.parse(textOf(await callTool(mcp.url, BOB, 'whoami')))).toMatchObject({ id: 'bob', provider: 'token' });
+  it('résout chaque jeton en identité (whoami) et journalise sans le jeton', async () => {
+    expect(JSON.parse(textOf(await callTool(mcp.url, LUCAS, 'whoami')))).toMatchObject({ id: 'lucas', provider: 'dev-token' });
+    expect(JSON.parse(textOf(await callTool(mcp.url, BOB, 'whoami')))).toMatchObject({ id: 'bob', provider: 'dev-token' });
     const entries = await (await fetch(`${mcp.url}/audit?limit=10`, { headers: { Authorization: `Bearer ${LUCAS}` } })).json();
     expect(entries.map((e: any) => `${e.user}:${e.tool}:${e.ok}`)).toEqual(['bob:whoami:true', 'lucas:whoami:true']);
     expect(JSON.stringify(entries)).not.toContain(LUCAS);
   });
 
-  it("une session ouverte par lucas n'est pas utilisable avec le token de bob (404)", async () => {
+  it("une session ouverte par lucas n'est pas utilisable avec le jeton de bob (404)", async () => {
     const lucas = await mcpClient(mcp.url, LUCAS);
     const response = await fetch(`${mcp.url}/mcp`, {
       method: 'POST',

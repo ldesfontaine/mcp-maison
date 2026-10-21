@@ -1,24 +1,22 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { fakeOidc } from './fakes.js';
-import { callTool, listen, startMcp, textOf } from './helpers.js';
+import { callTool, listen, oidcEnv, startMcp, textOf } from './helpers.js';
 import { connectLikeClaude, obtainTokens } from './oauth-helpers.js';
 
 const claims = { sub: 'f3a1', preferred_username: 'marie', name: 'Marie C.', email: 'marie@example.com', groups: ['integrateurs'] };
-const servers: { stop?: () => Promise<void>; close?: () => void }[] = [];
-afterAll(async () => { for (const s of servers) await (s.stop?.() ?? s.close?.()); });
+const stops: (() => unknown)[] = [];
+afterAll(async () => { for (const stop of stops) await stop(); });
 
 async function startWithOidc(idp: ReturnType<typeof fakeOidc>, extraEnv: Record<string, string> = {}) {
   const idpServer = await listen(idp.app);
-  servers.push({ close: () => idpServer.server.close() });
-  const mcp = await startMcp({
-    AUTH_MODE: 'oauth', OAUTH_PROVIDER: 'oidc', OAUTH_ISSUER: `${idpServer.url}/realms/test`,
-    OAUTH_CLIENT_ID: 'idp-app-id', OAUTH_CLIENT_SECRET: 'idp-app-secret', ...extraEnv
-  }, { rules: { everyone: ['core:read'], users: {}, groups: { integrateurs: ['gitlab:*'] } } });
-  servers.push(mcp);
+  const mcp = await startMcp({ ...oidcEnv(idpServer.url), ...extraEnv }, {
+    rules: { everyone: ['core:read'], users: {}, groups: { integrateurs: ['gitlab:*'] } }
+  });
+  stops.push(() => idpServer.server.close(), mcp.stop);
   return { mcp, idpUrl: idpServer.url };
 }
 
-describe('provider OIDC générique (découverte .well-known)', () => {
+describe('identité OIDC (découverte .well-known, userinfo)', () => {
   it('connexion complète : identité et groupes lus sur userinfo, droits par groupe appliqués', async () => {
     const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims));
     const { tokens } = await obtainTokens(mcp.url, idpUrl);
@@ -27,8 +25,8 @@ describe('provider OIDC générique (découverte .well-known)', () => {
     expect(me.allowedTools).toEqual(['ping', 'whoami', 'gitlab_publish', 'gitlab_list_publications']);
   });
 
-  it('OAUTH_ALLOWED_GROUPS : un compte hors des groupes autorisés est renvoyé vers Claude avec access_denied', async () => {
-    const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims), { OAUTH_ALLOWED_GROUPS: 'admins' });
+  it('OIDC_ALLOWED_GROUPS : un compte hors des groupes autorisés est renvoyé vers Claude avec access_denied', async () => {
+    const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims), { OIDC_ALLOWED_GROUPS: 'admins' });
     await expect(connectLikeClaude(mcp.url, idpUrl)).rejects.toThrow(/pas de code : utilisateur marie non autorisé/);
   });
 

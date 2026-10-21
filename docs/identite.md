@@ -3,85 +3,104 @@
 Chaque appel d'outil arrive avec une personne : `User { id, name?, email?, provider, groups? }`.
 Elle sert aux droits (`droits.md`), au journal, et aux outils (ex. auteur du commit GitLab).
 
-## Deux modes
+Il n'y a qu'une voie en production : **OpenID Connect**, avec n'importe quel IdP (GitLab, Keycloak,
+Authentik, Zitadel, Google…). Les jetons de développement ne servent qu'aux tests et au poste local.
 
-| | `AUTH_MODE=tokens` | `AUTH_MODE=oauth` |
+| | OIDC (`OIDC_*`) | Jetons de dev (`AUTH_DEV_TOKENS`) |
 | --- | --- | --- |
-| Pour | Perso, dev, scripts | claude.ai Team : un connecteur pour toute l'organisation |
-| Comment | `MCP_TOKENS=lucas:<jeton>,bob:<jeton>` | Chaque personne se connecte à l'IdP (GitLab, OIDC) |
-| Identité | L'identifiant devant le jeton | Le compte de l'IdP, avec ses groupes |
-| Stockage | Aucun (empreintes en mémoire) | SQLite (`DATABASE_PATH`), tout haché |
-| Côté Claude | En-tête `Authorization: Bearer …` | Bouton *Connect* |
+| Pour | Production, claude.ai Team | Tests, poste local, démo curl |
+| Comment | Chaque personne se connecte à l'IdP | `AUTH_DEV_TOKENS=lucas:<jeton>,bob:<jeton>` |
+| Identité | `preferred_username` (sinon `sub`), groupes de l'IdP | L'identifiant devant le jeton, sans groupe |
+| Stockage | SQLite (`DATABASE_PATH`), tout haché | Aucun (empreintes en mémoire) |
+| Côté Claude | Bouton *Connect* | En-tête `Authorization: Bearer …` |
+| En production | Oui | **Refusé** : le serveur ne démarre pas si `NODE_ENV=production` |
 
-En mode `oauth`, les jetons de `MCP_TOKENS` restent acceptés : pratique pour un script ou pour lire `/audit`.
+Les deux peuvent coexister hors production. Au démarrage, `AUTH_DEV_TOKENS` affiche un avertissement.
+Un jeton de dev se tire avec `openssl rand -hex 32` ; il est cherché par son empreinte SHA-256, jamais journalisé.
 
-Un jeton fixe se tire avec `openssl rand -hex 32`. Il est comparé par son empreinte SHA-256, jamais journalisé.
-
-## Le mode oauth
+## Comment marche la connexion
 
 mcp-maison est lui-même le serveur d'autorisation OAuth 2.1 que Claude attend : enregistrement
 dynamique des clients (DCR), PKCE S256, métadonnées `.well-known`. Il ne gère aucun mot de passe :
-il envoie la personne chez l'IdP, récupère son identité, puis émet ses propres jetons.
+il envoie la personne chez l'IdP, lit son identité sur `userinfo`, puis émet ses propres jetons.
 
-- Le jeton de l'IdP est jeté aussitôt : seule l'identité est gardée.
+- Adresses de l'IdP découvertes sur `${OIDC_ISSUER}/.well-known/openid-configuration` ;
+  un document qui annonce un autre `issuer` est refusé.
+- L'identité vient de `userinfo`, appelé avec le jeton reçu du `token_endpoint` en TLS :
+  l'`id_token` n'est pas utilisé, donc pas validé.
 - Accès 1 h, refresh 30 jours, rotation à chaque usage. Un refresh présenté deux fois révoque toute sa famille.
 - Codes, jetons et secrets de client sont hachés en base. Seul le verifier PKCE envoyé à l'IdP est en clair, 10 minutes.
-- `OAUTH_ALLOWED_USERS` / `OAUTH_ALLOWED_GROUPS` filtrent qui peut se connecter. Vides : tout compte de l'IdP.
+- `OIDC_ALLOWED_USERS` / `OIDC_ALLOWED_GROUPS` filtrent qui peut se connecter. Vides : tout compte de l'IdP.
 
-Le contrat d'un IdP tient en deux méthodes (`src/identity/oauth/providers/provider.ts`) :
-construire l'URL d'autorisation, échanger le code contre un `User`.
+## Les variables
 
-### GitLab (`OAUTH_PROVIDER=gitlab`)
+| Variable | Rôle |
+| --- | --- |
+| `MCP_PUBLIC_URL` | URL publique HTTPS de ce serveur, sans `/mcp` |
+| `OIDC_ISSUER` | L'issuer exact de l'IdP |
+| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | L'application déclarée chez l'IdP (confidentielle) |
+| `OIDC_SCOPES` | Défaut `openid profile email` |
+| `OIDC_GROUPS_CLAIM` | Claim de `userinfo` qui porte les groupes, défaut `groups` |
+| `OIDC_ALLOWED_USERS`, `OIDC_ALLOWED_GROUPS` | Optionnels, séparés par des virgules |
 
-Identité par `/api/v4/user`, groupes par `/oauth/userinfo` (chemins complets, ex. `exemple/dev`).
+Chez tout IdP, l'**URI de redirection** à déclarer est `${MCP_PUBLIC_URL}/oauth/callback`, exactement
+(ex. `https://mcp.example.com/oauth/callback`). Si un seul des quatre premiers est renseigné, les autres
+sont exigés au démarrage.
 
-**À créer sur gitlab.example.com** :
-1. *Admin → Applications → New application* (application d'instance). Sinon : application de groupe
-   (*groupe → Settings → Applications*).
-2. **Redirect URI** : `${MCP_PUBLIC_URL}/oauth/callback`, exactement (ex. `https://mcp.example.com/oauth/callback`).
-3. **Confidential** : oui. **Scopes** : `read_user` et `openid`. Rien d'autre.
-4. Application d'instance : cocher *Trusted* évite l'écran de consentement GitLab.
-5. *Application ID* → `OAUTH_CLIENT_ID`, *Secret* → `OAUTH_CLIENT_SECRET`, `OAUTH_ISSUER=https://gitlab.example.com`.
+## Exemple : GitLab
 
-Sans le scope `openid`, la connexion passe mais sans groupes (avertissement dans les logs) :
-seules les règles par personne s'appliquent.
+GitLab est un IdP OIDC standard : rien de spécifique côté code.
 
-### OIDC générique (`OAUTH_PROVIDER=oidc`)
+1. *Admin → Applications → New application* (application d'instance), ou *groupe → Settings → Applications*.
+2. **Redirect URI** : `https://mcp.example.com/oauth/callback`.
+3. **Confidential** : oui. **Scopes** : `openid`, `profile`, `email`. Rien d'autre (pas besoin de `read_user` ni `api`).
+4. Application d'instance : cocher *Trusted* évite l'écran de consentement.
+5. Dans `.env` :
+   ```
+   MCP_PUBLIC_URL=https://mcp.example.com
+   OIDC_ISSUER=https://gitlab.example.com
+   OIDC_CLIENT_ID=<Application ID>
+   OIDC_CLIENT_SECRET=<Secret>
+   ```
 
-Tout IdP OpenID Connect : Keycloak, Authentik, Zitadel, Google, Entra ID…
-Les adresses sont découvertes sur `${OAUTH_ISSUER}/.well-known/openid-configuration` ;
-un document qui annonce un autre `issuer` est refusé.
+L'identifiant est le username GitLab (`preferred_username`). Le claim `groups` de `userinfo` donne les
+chemins complets des groupes (ex. `exemple/dev`), sous-groupes et groupes parents compris :
+c'est ce qui s'écrit dans `permissions.yaml`. L'e-mail n'arrive que si la personne a un e-mail public.
 
-- `OAUTH_ISSUER` : l'issuer exact (ex. `https://auth.example.com/realms/exemple`).
-- `OAUTH_SCOPES` : défaut `openid profile email`. Ajouter `groups` si l'IdP l'exige pour ce claim.
-- `OAUTH_GROUPS_CLAIM` : défaut `groups`.
-- Identité : `preferred_username`, sinon `sub`. C'est ce nom qui va dans `permissions.yaml`.
+## Exemple : Keycloak
 
-L'identité est lue sur `userinfo`, appelé directement avec le jeton du `token_endpoint` en TLS :
-l'`id_token` n'est pas utilisé, donc pas validé.
+1. Dans le realm : *Clients → Create client*, type OpenID Connect, *Client authentication* : on.
+2. *Valid redirect URIs* : `https://mcp.example.com/oauth/callback`.
+3. Pour les groupes : *Client scopes → <client>-dedicated → Add mapper → Group Membership*,
+   nom du claim `groups`, *Add to userinfo* : on (*Full group path* au choix).
+4. `OIDC_ISSUER=https://auth.example.com/realms/<realm>`, identifiants dans l'onglet *Credentials*.
 
-## Pourquoi pas Redmine comme IdP
+## Exemple : Authentik
 
-Redmine n'a pas de serveur OAuth natif. Il sait être client (LDAP, et SSO par plugins), pas fournisseur.
-Il donne une clé d'API par personne, qui prouve un accès à Redmine, pas une identité qu'un tiers peut vérifier
-par une redirection. Des plugins tiers ajoutent un fournisseur OAuth ; ce serait une dépendance de plus à maintenir.
-
-Les options, dans l'ordre :
-1. **GitLab reste l'IdP**, Redmine devient un groupe d'outils (`src/tools/redmine/`) qui appelle son API avec une clé
-   de service, en indiquant l'utilisateur GitLab dans ce qu'il écrit. Les logins sont souvent les mêmes.
-2. **Un IdP commun** (Keycloak, Authentik) branché sur le même annuaire que Redmine et GitLab, en `OAUTH_PROVIDER=oidc`.
-3. **Un plugin OAuth sur Redmine**, puis `providers/redmine.ts` sur le modèle de `gitlab.ts`.
+1. *Applications → Providers → Create → OAuth2/OpenID Provider*, type confidentiel.
+2. *Redirect URIs* : `https://mcp.example.com/oauth/callback`. Scopes : `openid`, `profile`, `email`
+   (le scope `profile` d'Authentik porte déjà le claim `groups`).
+3. Créer l'*Application* liée au provider.
+4. `OIDC_ISSUER=https://auth.example.com/application/o/<slug>/` (l'issuer affiché par le provider, slash final compris).
 
 ## Contraintes de claude.ai (plan Team)
 
 - Seuls les Owners ajoutent un connecteur personnalisé, pour toute l'organisation.
 - Chaque membre clique ensuite *Connect* et s'authentifie lui-même : c'est ce qui donne une identité par personne.
-- Un seul jeton fixe partagé ne distingue personne : en Team, il faut le mode `oauth`.
 - Laisser vides *OAuth Client ID / Secret* (paramètres avancés) : Claude s'enregistre seul (DCR).
 - Le serveur doit être joignable en HTTPS depuis les IP d'Anthropic (voir `deploiement.md`).
 - Modifier un connecteur = le supprimer et le recréer.
 
 Source : [Custom connectors (support Claude)](https://support.claude.com/en/articles/11175166).
+
+## Pourquoi pas Redmine comme IdP
+
+Redmine n'a pas de fournisseur OpenID Connect natif : il sait être client (LDAP, SSO par plugins), pas IdP.
+Les options, dans l'ordre :
+1. **GitLab reste l'IdP**, Redmine devient un groupe d'outils (`src/tools/redmine/`) qui appelle son API avec
+   une clé de service, en indiquant l'utilisateur connecté dans ce qu'il écrit.
+2. **Un IdP commun** (Keycloak, Authentik) branché sur le même annuaire que Redmine et GitLab.
+3. **Un plugin OIDC fournisseur sur Redmine** : ce n'est alors qu'un `OIDC_ISSUER` de plus, sans code.
 
 ## Retirer quelqu'un
 

@@ -1,8 +1,10 @@
 import express, { type Express } from 'express';
 import { getOAuthProtectedResourceMetadataUrl, mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import type { OidcConfig } from '../../config.js';
+import { deriveKey } from '../secrets.js';
 import { AuthorizationServer } from './authorization-server.js';
 import { requireClientSecret } from './clients.js';
+import { IdpGateway } from './idp-gateway.js';
 import { createOidcClient } from './oidc.js';
 import { OAuthStore } from './store.js';
 
@@ -17,8 +19,11 @@ export function mountOAuth(app: Express, oidc: OidcConfig, databasePath: string)
   const base = new URL(oidc.publicUrl);
   const resource = new URL('/mcp', base);
   const store = new OAuthStore(databasePath);
-  const idp = createOidcClient({ ...oidc, callbackUrl: new URL('/oauth/callback', base).href });
-  const server = new AuthorizationServer({ store, idp, resource, allowedUsers: oidc.allowedUsers, allowedGroups: oidc.allowedGroups });
+  const oidcClient = createOidcClient({ ...oidc, callbackUrl: new URL('/oauth/callback', base).href });
+  // Clé tirée du secret OIDC : une copie de la base seule ne déchiffre pas les refresh tokens de l'IdP.
+  const sealingKey = deriveKey(oidc.clientSecret, 'idp-refresh');
+  const idp = new IdpGateway(oidcClient, { sealingKey, allowedUsers: oidc.allowedUsers, allowedGroups: oidc.allowedGroups });
+  const server = new AuthorizationServer({ store, idp, resource });
 
   app.post(['/token', '/revoke'], express.urlencoded({ extended: false }), requireClientSecret(store));
   // Limites de débit relevées : tous les utilisateurs de claude.ai arrivent des mêmes IP Anthropic.

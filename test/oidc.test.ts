@@ -1,11 +1,13 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { fakeOidc } from './fakes.js';
 import { callTool, listen, oidcEnv, startMcp, textOf } from './helpers.js';
 import { connectLikeClaude, obtainTokens } from './oauth-helpers.js';
 
-const claims = { sub: 'f3a1', preferred_username: 'marie', name: 'Marie C.', email: 'marie@example.com', groups: ['integrateurs'] };
+const claims = () => ({ sub: 'f3a1', preferred_username: 'marie', name: 'Marie C.', email: 'marie@example.com', groups: ['integrateurs'] });
 const stops: (() => unknown)[] = [];
 afterAll(async () => { for (const stop of stops) await stop(); });
+
+const whoami = async (url: string, token: string) => JSON.parse(textOf(await callTool(url, token, 'whoami')));
 
 async function startWithOidc(idp: ReturnType<typeof fakeOidc>, extraEnv: Record<string, string> = {}) {
   const idpServer = await listen(idp.app);
@@ -18,20 +20,20 @@ async function startWithOidc(idp: ReturnType<typeof fakeOidc>, extraEnv: Record<
 
 describe('identité OIDC (découverte .well-known, userinfo)', () => {
   it('connexion complète : identité et groupes lus sur userinfo, droits par groupe appliqués', async () => {
-    const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims));
+    const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims()));
     const { tokens } = await obtainTokens(mcp.url, idpUrl);
-    const me = JSON.parse(textOf(await callTool(mcp.url, tokens.access_token, 'whoami')));
+    const me = await whoami(mcp.url, tokens.access_token);
     expect(me).toMatchObject({ id: 'marie', name: 'Marie C.', provider: 'oidc', groups: ['integrateurs'] });
     expect(me.allowedTools).toEqual(['ping', 'whoami', 'gitlab_publish', 'gitlab_list_publications']);
   });
 
   it('OIDC_ALLOWED_GROUPS : un compte hors des groupes autorisés est renvoyé vers Claude avec access_denied', async () => {
-    const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims), { OIDC_ALLOWED_GROUPS: 'admins' });
+    const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims()), { OIDC_ALLOWED_GROUPS: 'admins' });
     await expect(connectLikeClaude(mcp.url, idpUrl)).rejects.toThrow(/pas de code : utilisateur marie non autorisé/);
   });
 
   it('un IdP qui annonce un autre issuer est refusé', async () => {
-    const { mcp } = await startWithOidc(fakeOidc(claims, { announcedIssuer: () => 'https://usurpateur.example.com' }));
+    const { mcp } = await startWithOidc(fakeOidc(claims(), { announcedIssuer: () => 'https://usurpateur.example.com' }));
     const metadata = await (await fetch(`${mcp.url}/.well-known/oauth-authorization-server`)).json();
     const registration = await (await fetch(metadata.registration_endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -45,5 +47,49 @@ describe('identité OIDC (découverte .well-known, userinfo)', () => {
     expect(response.status).toBe(302);
     expect(new URL(response.headers.get('location')!).origin).toBe('https://claude.ai');
     expect(new URL(response.headers.get('location')!).searchParams.get('error')).toBe('server_error');
+  });
+});
+
+describe('identité relue chez l\'IdP à chaque refresh', () => {
+  it('les groupes suivent l\'IdP : retiré du groupe, la personne perd ses droits au refresh suivant', async () => {
+    const idp = fakeOidc(claims());
+    const { mcp, idpUrl } = await startWithOidc(idp);
+    const { tokens, refresh } = await obtainTokens(mcp.url, idpUrl);
+    expect((await whoami(mcp.url, tokens.access_token)).allowedTools).toContain('gitlab_publish');
+
+    idp.claims.groups = ['stagiaires'];
+    const renewed = await (await refresh(tokens.refresh_token)).json();
+    expect(await whoami(mcp.url, renewed.access_token)).toMatchObject({ groups: ['stagiaires'], allowedTools: ['ping', 'whoami'] });
+  });
+
+  it('compte bloqué chez l\'IdP (refresh refusé) : refresh 400 et famille révoquée', async () => {
+    const idp = fakeOidc(claims());
+    const { mcp, idpUrl } = await startWithOidc(idp);
+    const { tokens, refresh } = await obtainTokens(mcp.url, idpUrl);
+    idp.revokeRefreshTokens();
+    const response = await refresh(tokens.refresh_token);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error_description).toMatch(/reconnecter/);
+    expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401);
+  });
+
+  it('sorti de OIDC_ALLOWED_GROUPS : refresh refusé', async () => {
+    const idp = fakeOidc(claims());
+    const { mcp, idpUrl } = await startWithOidc(idp, { OIDC_ALLOWED_GROUPS: 'integrateurs' });
+    const { tokens, refresh } = await obtainTokens(mcp.url, idpUrl);
+    idp.claims.groups = [];
+    expect((await refresh(tokens.refresh_token)).status).toBe(400);
+  });
+
+  it('IdP sans refresh token : identité de la connexion gardée, avertissement à la connexion', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const idp = fakeOidc(claims(), { withoutRefreshToken: true });
+    const { mcp, idpUrl } = await startWithOidc(idp);
+    const { tokens, refresh } = await obtainTokens(mcp.url, idpUrl);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('figée jusqu\'à sa reconnexion'));
+    idp.claims.groups = [];
+    const renewed = await (await refresh(tokens.refresh_token)).json();
+    expect((await whoami(mcp.url, renewed.access_token)).groups).toEqual(['integrateurs']);
+    warn.mockRestore();
   });
 });

@@ -32,6 +32,22 @@ il envoie la personne chez l'IdP, lit son identité sur `userinfo`, puis émet s
 - Codes, jetons et secrets de client sont hachés en base. Seul le verifier PKCE envoyé à l'IdP est en clair, 10 minutes.
 - `OIDC_ALLOWED_USERS` / `OIDC_ALLOWED_GROUPS` filtrent qui peut se connecter. Vides : tout compte de l'IdP.
 
+## L'identité suit l'IdP
+
+Les groupes ne sont pas figés à la connexion. Quand Claude renouvelle son jeton (toutes les heures),
+mcp-maison renouvelle aussi celui de l'IdP et relit `userinfo` : groupes, nom, e-mail sont à jour.
+
+| L'IdP… | Effet au prochain refresh (1 h au plus) |
+| --- | --- |
+| a changé les groupes | Nouveaux groupes, donc nouveaux droits (`droits.md`) |
+| refuse le refresh (compte bloqué, accès révoqué) | Famille de jetons révoquée : la personne doit reconnecter, et l'IdP la refusera |
+| la sort des groupes de `OIDC_ALLOWED_GROUPS` | Même chose : refusée |
+| est injoignable | Même chose : on préfère couper que garder des droits périmés |
+| ne donne pas de refresh token | Identité de la connexion gardée (avertissement à la connexion). Keycloak, GitLab en donnent ; ailleurs, ajouter `offline_access` à `OIDC_SCOPES` si l'IdP l'exige |
+
+Pour cela, le refresh token de l'IdP est gardé en base, **chiffré** (AES-256-GCM) avec une clé dérivée de
+`OIDC_CLIENT_SECRET` : une copie de la base seule n'en fait rien. Changer ce secret oblige chacun à reconnecter.
+
 ## Les variables
 
 | Variable | Rôle |

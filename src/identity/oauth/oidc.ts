@@ -10,10 +10,17 @@ export interface OidcSettings {
   groupsClaim: string; // claim de userinfo qui porte les groupes, souvent "groups"
 }
 
-/** La connexion déléguée à l'IdP : où envoyer le navigateur, puis qui est revenu. */
+/** Ce que l'IdP dit de la personne, et de quoi le lui redemander plus tard (si l'IdP le permet). */
+export interface IdpSession {
+  user: User;
+  refreshToken?: string;
+}
+
+/** La connexion déléguée à l'IdP : où envoyer le navigateur, qui est revenu, et qui c'est aujourd'hui. */
 export interface OidcClient {
   buildAuthorizeUrl(request: { state: string; codeChallenge: string }): Promise<URL>;
-  fetchUser(code: string, codeVerifier: string): Promise<User>;
+  signIn(code: string, codeVerifier: string): Promise<IdpSession>;
+  refreshSession(refreshToken: string): Promise<IdpSession>;
 }
 
 interface Discovery { issuer: string; authorization_endpoint: string; token_endpoint: string; userinfo_endpoint: string }
@@ -37,12 +44,16 @@ export function createOidcClient(settings: OidcSettings): OidcClient {
       return url;
     },
 
-    async fetchUser(code, codeVerifier) {
-      const { token_endpoint, userinfo_endpoint } = await discover();
-      const accessToken = await requestAccessToken(token_endpoint, settings, {
+    async signIn(code, codeVerifier) {
+      return fetchSession(await discover(), settings, {
         grant_type: 'authorization_code', code, code_verifier: codeVerifier, redirect_uri: settings.callbackUrl
       });
-      return fetchUserinfo(userinfo_endpoint, accessToken, settings.groupsClaim);
+    },
+
+    // Relu à chaque refresh de Claude : groupes à jour, et un compte bloqué chez l'IdP est coupé.
+    async refreshSession(refreshToken) {
+      const session = await fetchSession(await discover(), settings, { grant_type: 'refresh_token', refresh_token: refreshToken });
+      return { ...session, refreshToken: session.refreshToken ?? refreshToken }; // IdP sans rotation : on garde l'ancien
     }
   };
 }
@@ -74,17 +85,23 @@ async function fetchDiscovery(issuer: string): Promise<Discovery> {
   return document;
 }
 
-/** Appel au token_endpoint. Le jeton de l'IdP sert à lire userinfo, puis il est oublié. */
-async function requestAccessToken(tokenEndpoint: string, settings: OidcSettings, grant: Record<string, string>): Promise<string> {
+/** token_endpoint puis userinfo. L'access token de l'IdP sert à lire userinfo, puis il est oublié. */
+async function fetchSession(discovery: Discovery, settings: OidcSettings, grant: Record<string, string>): Promise<IdpSession> {
+  const tokens = await requestTokens(discovery.token_endpoint, settings, grant);
+  const user = await fetchUserinfo(discovery.userinfo_endpoint, tokens.access_token, settings.groupsClaim);
+  return { user, refreshToken: tokens.refresh_token };
+}
+
+async function requestTokens(tokenEndpoint: string, settings: OidcSettings, grant: Record<string, string>) {
   const response = await fetch(tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams({ ...grant, client_id: settings.clientId, client_secret: settings.clientSecret })
   });
   if (!response.ok) throw new Error(`jeton refusé par l'IdP (${response.status})`);
-  const body = (await response.json()) as { access_token?: string };
+  const body = (await response.json()) as { access_token?: string; refresh_token?: string };
   if (!body.access_token) throw new Error("réponse de l'IdP sans access_token");
-  return body.access_token;
+  return { access_token: body.access_token, refresh_token: body.refresh_token };
 }
 
 async function fetchUserinfo(userinfoEndpoint: string, accessToken: string, groupsClaim: string): Promise<User> {

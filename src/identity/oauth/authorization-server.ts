@@ -5,10 +5,9 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { InvalidGrantError, InvalidTargetError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { generateSecret } from '../secrets.js';
-import type { User } from '../user.js';
 import { createClientsStore } from './clients.js';
-import type { OidcClient } from './oidc.js';
-import { getEpochSeconds, type OAuthStore } from './store.js';
+import type { IdpGateway, SignedInIdentity } from './idp-gateway.js';
+import { getEpochSeconds, type OAuthStore, type StoredToken } from './store.js';
 
 const PENDING_TTL = 600;
 const CODE_TTL = 300;
@@ -17,24 +16,16 @@ const REFRESH_TTL = 30 * 86400;
 
 export interface AuthorizationServerOptions {
   store: OAuthStore;
-  idp: OidcClient;
+  idp: IdpGateway;
   resource: URL; // URL de /mcp : audience des jetons émis
-  allowedUsers: string[]; // vides = tout compte de l'IdP
-  allowedGroups: string[];
 }
 
 const isSameUrl = (a: string, b: string) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 
-/** OIDC_ALLOWED_USERS / OIDC_ALLOWED_GROUPS : qui peut se connecter. Vides : tout compte de l'IdP. */
-export function assertUserAllowed(user: User, allowedUsers: string[], allowedGroups: string[]) {
-  if (!allowedUsers.length && !allowedGroups.length) return;
-  const inGroup = (user.groups ?? []).some((group) => allowedGroups.includes(group));
-  if (!allowedUsers.includes(user.id) && !inGroup) throw new Error(`utilisateur ${user.id} non autorisé sur ce serveur`);
-}
-
 /**
  * Serveur d'autorisation OAuth 2.1 pour Claude (DCR + PKCE), qui délègue la connexion à l'IdP OIDC :
  * /authorize -> IdP -> /oauth/callback -> identité -> code local -> /token -> jetons opaques.
+ * À chaque refresh, l'identité (groupes compris) est relue chez l'IdP.
  */
 export class AuthorizationServer implements OAuthServerProvider {
   readonly clientsStore;
@@ -65,13 +56,13 @@ export class AuthorizationServer implements OAuthServerProvider {
     if (request.state) back.searchParams.set('state', request.state);
     try {
       if (query.error || !query.code) throw new Error(query.error ?? 'code manquant');
-      const user = await this.options.idp.fetchUser(query.code, upstreamVerifier);
-      assertUserAllowed(user, this.options.allowedUsers, this.options.allowedGroups);
+      const identity = await this.options.idp.signIn(query.code, upstreamVerifier);
       const code = generateSecret();
       this.options.store.saveCode(code, {
-        clientId: request.clientId, challenge: request.codeChallenge, redirectUri: request.redirectUri, user, expiresAt: getEpochSeconds() + CODE_TTL
+        ...identity, clientId: request.clientId, challenge: request.codeChallenge, redirectUri: request.redirectUri,
+        expiresAt: getEpochSeconds() + CODE_TTL
       });
-      console.log(`[oauth] connexion de ${user.id}`);
+      console.log(`[oauth] connexion de ${identity.user.id}`);
       back.searchParams.set('code', code);
     } catch (error) {
       back.searchParams.set('error', 'access_denied');
@@ -91,7 +82,7 @@ export class AuthorizationServer implements OAuthServerProvider {
     const stored = this.options.store.takeCode(code);
     if (!stored || stored.clientId !== client.client_id || stored.expiresAt < getEpochSeconds()) throw new InvalidGrantError('code invalide');
     if (redirectUri && redirectUri !== stored.redirectUri) throw new InvalidGrantError('redirect_uri différente');
-    return this.issueTokens(client.client_id, stored.user, [], randomUUID());
+    return this.issueTokens(client.client_id, stored, [], randomUUID());
   }
 
   /** Rotation : chaque refresh sert une fois. Rejoué, il révoque toute sa famille (vol probable). */
@@ -105,7 +96,8 @@ export class AuthorizationServer implements OAuthServerProvider {
       console.warn(`[oauth] refresh rejoué pour ${stored.user.id} : famille révoquée`);
       throw new InvalidGrantError('refresh token déjà utilisé');
     }
-    return this.issueTokens(client.client_id, stored.user, scopes ?? stored.scopes, stored.familyId);
+    const identity = await this.renewIdentity(stored);
+    return this.issueTokens(client.client_id, identity, scopes ?? stored.scopes, stored.familyId);
   }
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
@@ -121,12 +113,23 @@ export class AuthorizationServer implements OAuthServerProvider {
     this.options.store.deleteToken(request.token);
   }
 
-  private issueTokens(clientId: string, user: User, scopes: string[], familyId: string): OAuthTokens {
+  /** Identité relue chez l'IdP ; en cas d'échec, la famille est révoquée et Claude devra reconnecter. */
+  private async renewIdentity(stored: StoredToken): Promise<SignedInIdentity> {
+    try {
+      return await this.options.idp.renew(stored);
+    } catch (error) {
+      this.options.store.deleteFamily(stored.familyId);
+      console.warn(`[oauth] identité de ${stored.user.id} non renouvelée (${(error as Error).message}) : famille révoquée`);
+      throw new InvalidGrantError("identité non renouvelée par l'IdP : reconnecter le connecteur");
+    }
+  }
+
+  private issueTokens(clientId: string, { user, sealedIdpRefresh }: SignedInIdentity, scopes: string[], familyId: string): OAuthTokens {
     const accessToken = generateSecret();
     const refreshToken = generateSecret();
     const common = { clientId, familyId, user, scopes };
     this.options.store.saveToken(accessToken, { ...common, kind: 'access', expiresAt: getEpochSeconds() + ACCESS_TTL });
-    this.options.store.saveToken(refreshToken, { ...common, kind: 'refresh', expiresAt: getEpochSeconds() + REFRESH_TTL });
+    this.options.store.saveToken(refreshToken, { ...common, kind: 'refresh', sealedIdpRefresh, expiresAt: getEpochSeconds() + REFRESH_TTL });
     return { access_token: accessToken, token_type: 'Bearer', expires_in: ACCESS_TTL, refresh_token: refreshToken, scope: scopes.join(' ') || undefined };
   }
 }

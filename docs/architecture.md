@@ -46,12 +46,15 @@ sequenceDiagram
     C->>I: la personne se connecte
     I-->>M: GET /oauth/callback?code
     M->>I: échange du code (token_endpoint), puis userinfo : identité et groupes
-    Note over M: le jeton de l'IdP est jeté, seule l'identité reste
-    M->>DB: code d'autorisation haché (5 min)
+    Note over M: access token de l'IdP jeté, refresh token de l'IdP chiffré
+    M->>DB: code d'autorisation haché (5 min) + identité
     M-->>C: 302 vers claude.ai avec le code
     C->>M: POST /token (code + verifier)
     M->>DB: famille : access 1 h + refresh 30 j, hachés
     M-->>C: jetons
+    C->>M: POST /token (refresh, toutes les heures)
+    M->>I: refresh chez l'IdP, puis userinfo : groupes à jour
+    M-->>C: nouveaux jetons (ou invalid_grant si l'IdP refuse)
 ```
 
 Avec `AUTH_DEV_TOKENS` (hors production), rien de tout ça : le Bearer est cherché par son empreinte.
@@ -88,6 +91,6 @@ Le journal ne contient jamais le contenu des fichiers ni un secret : chaque outi
 | Choix | Ce qu'il rapporte | Ce qu'il coûte |
 | --- | --- | --- |
 | SQLite pour l'état OAuth | Un redémarrage ne déconnecte personne | Un seul réplica (fichier local) ; sauvegarde à prévoir |
-| Identité figée à la connexion | Pas de jeton IdP à garder | Un changement de groupe côté IdP compte à la reconnexion (30 j max) |
+| Identité relue à chaque refresh | Groupes et blocages de l'IdP pris en compte dans l'heure | Refresh token de l'IdP gardé (chiffré) ; IdP injoignable = reconnexion |
 | Outils visibles même sans droit | Le refus est explicite et journalisé | Claude voit des outils qu'il ne pourra pas appeler |
 | Groupe mal configuré ignoré | Une intégration en panne ne coupe pas les autres | Il faut lire l'avertissement au démarrage |

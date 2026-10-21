@@ -7,15 +7,32 @@ const isPkceValid = (verifier: string | undefined, challenge: string) =>
 
 export const IDP_CLIENT = { id: 'idp-app-id', secret: 'idp-app-secret' };
 
+interface FakeOidcOptions {
+  announcedIssuer?: (issuer: string) => string; // pour simuler un document de découverte usurpé
+  withoutRefreshToken?: boolean; // IdP qui ne donne pas de refresh token
+}
+
 /**
  * Faux IdP OpenID Connect (GitLab, Keycloak, Authentik…) : découverte sous /realms/test, authorize qui
- * accepte tout de suite, token avec PKCE, userinfo. `claims` est modifiable pendant le test.
+ * accepte tout de suite, token (code avec PKCE, ou refresh avec rotation), userinfo.
+ * `claims` est modifiable pendant le test ; `revokeRefreshTokens` simule un compte bloqué.
  */
-export function fakeOidc(claims: Record<string, unknown>, options: { announcedIssuer?: (issuer: string) => string } = {}) {
+export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptions = {}) {
   const app = express();
   app.use(express.urlencoded({ extended: false }), express.json());
   const codes = new Map<string, { redirect: string; challenge: string }>();
   const accessTokens = new Set<string>();
+  const refreshTokens = new Set<string>();
+  const issuedRefreshTokens: string[] = [];
+  const issueTokens = () => {
+    const access = generateCode();
+    accessTokens.add(access);
+    if (options.withoutRefreshToken) return { access_token: access, token_type: 'Bearer' };
+    const refresh = generateCode();
+    refreshTokens.add(refresh);
+    issuedRefreshTokens.push(refresh);
+    return { access_token: access, token_type: 'Bearer', refresh_token: refresh };
+  };
 
   app.get('/realms/test/.well-known/openid-configuration', (req, res) => {
     const origin = `http://${req.headers.host}`;
@@ -35,20 +52,22 @@ export function fakeOidc(claims: Record<string, unknown>, options: { announcedIs
   });
   app.post('/token', (req, res) => {
     const body = req.body as Record<string, string>;
+    if (body.client_secret !== IDP_CLIENT.secret) return void res.status(401).json({ error: 'invalid_client' });
+    if (body.grant_type === 'refresh_token') {
+      if (!refreshTokens.delete(body.refresh_token)) return void res.status(400).json({ error: 'invalid_grant' });
+      return void res.json(issueTokens());
+    }
     const stored = codes.get(body.code);
     codes.delete(body.code);
-    const valid = stored && isPkceValid(body.code_verifier, stored.challenge) && body.client_secret === IDP_CLIENT.secret
-      && body.redirect_uri === stored.redirect;
+    const valid = stored && isPkceValid(body.code_verifier, stored.challenge) && body.redirect_uri === stored.redirect;
     if (!valid) return void res.status(400).json({ error: 'invalid_grant' });
-    const token = generateCode();
-    accessTokens.add(token);
-    res.json({ access_token: token, token_type: 'Bearer' });
+    res.json(issueTokens());
   });
   app.get('/userinfo', (req, res) => {
     const token = req.headers.authorization?.replace('Bearer ', '') ?? '';
     return void (accessTokens.has(token) ? res.json(claims) : res.status(401).end());
   });
-  return { app, claims };
+  return { app, claims, issuedRefreshTokens, revokeRefreshTokens: () => refreshTokens.clear() };
 }
 
 /** Faux GitLab, côté API seulement (groupe d'outils gitlab) : tree et commits. */

@@ -89,6 +89,6 @@ Côté journal, une ligne `denied: true`, sans exécuter l'outil :
 
 ## Limites connues
 
-- Les groupes sont lus à la connexion OIDC : un changement côté IdP compte à la reconnexion.
-  Pour couper tout de suite, passer par `users` (voir aussi « Retirer quelqu'un » dans `identite.md`).
+- Les groupes viennent de l'IdP et sont relus à chaque refresh du jeton de Claude (`identite.md`) : un changement
+  de groupe côté IdP compte dans l'heure, pas à l'instant. Pour couper tout de suite, modifier `permissions.yaml`.
 - Pas de droit par ressource (tel slug, tel projet) : un outil peut le faire lui-même avec `ctx.user`.

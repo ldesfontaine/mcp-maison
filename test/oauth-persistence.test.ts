@@ -4,8 +4,9 @@ import { fakeOidc } from './fakes.js';
 import { callTool, listen, oidcEnv, startMcp, textOf } from './helpers.js';
 import { obtainTokens } from './oauth-helpers.js';
 
+const idp = fakeOidc({ sub: '7', preferred_username: 'lucas' });
 let idpServer: Awaited<ReturnType<typeof listen>>;
-beforeAll(async () => { idpServer = await listen(fakeOidc({ sub: '7', preferred_username: 'lucas' }).app); });
+beforeAll(async () => { idpServer = await listen(idp.app); });
 afterAll(() => idpServer.server.close());
 
 const oauthEnv = () => oidcEnv(idpServer.url);
@@ -17,7 +18,7 @@ const readDatabaseFiles = (dataDir: string) => ['mcp-maison.db', 'mcp-maison.db-
   .join('');
 
 describe('persistance SQLite', () => {
-  it('jetons et clients survivent à un redémarrage ; rien de secret en clair dans la base', async () => {
+  it('jetons et clients survivent à un redémarrage ; rien de secret en clair dans la base (refresh token de l\'IdP compris)', async () => {
     const first = await startMcp(oauthEnv());
     const { tokens, client } = await obtainTokens(first.url, idpServer.url, { confidential: true });
     await first.stop();
@@ -37,7 +38,9 @@ describe('persistance SQLite', () => {
 
     const database = readDatabaseFiles(first.dataDir);
     expect(database).toContain('oauth_tokens'); // on lit bien la base
-    for (const secret of [tokens.access_token, tokens.refresh_token, fresh.access_token, fresh.refresh_token, client.client_secret!]) {
+    expect(idp.issuedRefreshTokens).toHaveLength(2); // connexion, puis refresh relu chez l'IdP après redémarrage
+    const secrets = [tokens.access_token, tokens.refresh_token, fresh.access_token, fresh.refresh_token, client.client_secret!];
+    for (const secret of [...secrets, ...idp.issuedRefreshTokens]) {
       expect(database).not.toContain(secret);
     }
   });

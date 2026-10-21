@@ -16,10 +16,27 @@ npm run build && npm start    # comme en prod
 ```bash
 cp .env.example .env && vi .env
 mkdir -p data && sudo chown 1000:1000 data     # écrit par l'utilisateur "node" du conteneur
-docker compose up -d --build
-curl http://127.0.0.1:3000/health              # identité, outils chargés, groupes ignorés
+docker compose up -d
+curl http://127.0.0.1:3000/health              # version, identité, outils chargés, groupes ignorés
 docker compose logs mcp | grep -i "non chargé" # groupes ignorés faute de config
 ```
+
+`docker-compose.yml` tire l'image publiée `ghcr.io/ldesfontaine/mcp-maison:v0.1.0` (amd64 et arm64).
+En production, l'épingler aussi par **digest** (`…:v0.1.0@sha256:…`) : une balise peut être déplacée, un
+digest non. Le digest se lit sur la page du paquet GitHub, ou par
+`docker buildx imagetools inspect ghcr.io/ldesfontaine/mcp-maison:v0.1.0`. Chaque image publiée porte une
+attestation de provenance : `gh attestation verify oci://ghcr.io/ldesfontaine/mcp-maison:v0.1.0 -R ldesfontaine/mcp-maison`.
+
+### Construire l'image depuis les sources (dev)
+
+Un `docker-compose.override.yml` à côté (lu automatiquement par `docker compose`) :
+```yaml
+services:
+  mcp:
+    build: .
+    image: mcp-maison:dev
+```
+puis `docker compose up -d --build`. Sans override : `docker build -t mcp-maison:dev .`
 
 Le volume `./data` porte la base SQLite (`mcp-maison.db`, sessions OAuth) et le journal (`audit.jsonl`).
 Pour les droits : placer `permissions.yaml` dans `./config/`, monter ce dossier (ligne commentée dans
@@ -69,6 +86,19 @@ Puis dans `.env` :
 
 Ne pas mettre d'authentification du proxy devant `/mcp`, `/.well-known/…`, `/register`, `/authorize`,
 `/token`, `/revoke`, `/oauth/callback` : Claude doit les atteindre. `/health` peut rester interne.
+
+## Versions publiées
+
+Une version = une balise `vX.Y.Z` poussée sur GitHub :
+```bash
+npm version 0.2.0            # package.json, src/version.ts (scripts/version.mjs), commit et balise v0.2.0
+git push --follow-tags
+```
+`.github/workflows/release.yml` vérifie que la balise vaut la version de `package.json`, lance `npm ci && npm run check`,
+puis pousse l'image multi-arch (amd64, arm64) sur `ghcr.io/ldesfontaine/mcp-maison:vX.Y.Z` et `:X.Y`, avec une
+attestation de provenance. Pas de balise `latest` : on installe une version précise. `GET /health` renvoie
+`version`, compilée au build depuis `package.json`. Chaque push et chaque PR passent par `ci.yml` (Node 22).
+Les actions des workflows sont épinglées par SHA de commit (version en commentaire).
 
 ## Variables
 

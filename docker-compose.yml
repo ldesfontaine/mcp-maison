@@ -1,6 +1,10 @@
 services:
   mcp:
-    build: .
+    # Image publiée par .github/workflows/release.yml (amd64, arm64). Épingler aussi par digest, que la
+    # balise ne puisse pas changer sous vos pieds : image: ghcr.io/ldesfontaine/mcp-maison:v0.1.0@sha256:<digest>
+    # (digest : page du paquet sur GitHub, ou `docker buildx imagetools inspect ghcr.io/ldesfontaine/mcp-maison:v0.1.0`).
+    # Construire depuis les sources (dev) : docs/deploiement.md.
+    image: ghcr.io/ldesfontaine/mcp-maison:v0.1.0
     container_name: mcp-maison
     restart: unless-stopped
     env_file: .env

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DEV_TOKENS, startMcp } from './helpers.js';
 
@@ -23,5 +24,11 @@ describe('/health', () => {
       status: 'ok', tools: ['ping', 'whoami', 'audit_recent'], skippedGroups: ['gitlab', 'inconnu']
     });
     expect(JSON.stringify(body)).not.toContain('GITLAB_URL');
+  });
+
+  it('renvoie la version de package.json, compilée au build (src/version.ts)', async () => {
+    const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect((await (await fetch(`${mcp.url}/health`)).json()).version).toBe(version);
   });
 });

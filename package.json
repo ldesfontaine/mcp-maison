@@ -9,11 +9,13 @@
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "prebuild": "node scripts/version.mjs",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "test": "vitest run",
     "lint": "eslint . && tsc -p tsconfig.test.json",
-    "check": "npm run lint && npm run build && npm test"
+    "check": "npm run lint && npm run build && npm test",
+    "version": "node scripts/version.mjs && git add src/version.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

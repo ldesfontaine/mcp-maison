@@ -38,6 +38,7 @@ src/authorization/
   rules.ts                     format de permissions.yaml et calcul des droits
   permissions-file.ts          l'Authorizer qui lit (et relit) permissions.yaml
 src/audit/log.ts, routes.ts    le journal, et GET /audit
+src/version.ts                 VERSION, écrit depuis package.json au build (scripts/version.mjs) ; /health
 src/tools/types.ts             contrat Tool, ToolGroup, ToolContext, defineGroupConfig
 src/tools/registry.ts          charge les groupes de TOOL_GROUPS
 src/tools/runner.ts            droit -> exécution -> journal

@@ -10,6 +10,7 @@ import { mountOAuth } from './identity/oauth/routes.js';
 import { createMcpSessions } from './mcp-sessions.js';
 import { loadToolGroups } from './tools/registry.js';
 import { buildMcpServer } from './tools/runner.js';
+import { VERSION } from './version.js';
 
 /** Les moyens d'identification actifs, pour /health et le message de démarrage. */
 export function describeIdentity(config: Config): string[] {
@@ -34,10 +35,10 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   if (config.TRUST_PROXY !== undefined) app.set('trust proxy', config.TRUST_PROXY);
 
   // Avant la validation de Host : la sonde Docker et la supervision appellent 127.0.0.1, pas le nom public.
-  // Pas d'authentification : des noms d'outils et de groupes, aucune valeur de configuration.
+  // Pas d'authentification : la version, des noms d'outils et de groupes, aucune valeur de configuration.
   app.get('/health', (_req, res) => {
     res.json({
-      status: 'ok', identity: describeIdentity(config), tools: tools.map((tool) => tool.name),
+      status: 'ok', version: VERSION, identity: describeIdentity(config), tools: tools.map((tool) => tool.name),
       skippedGroups: skipped.map((skip) => skip.group), sessions: mcp.sessions.size
     });
   });

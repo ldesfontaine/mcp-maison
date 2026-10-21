@@ -30,6 +30,6 @@ set -a; . ./.env; set +a; npm run dev
 - [Ajouter un outil](docs/ajouter-un-outil.md)
 - [Sobriété en tokens](docs/sobriete-tokens.md) : budget des définitions et des résultats
 - [Ajouter une intégration](docs/ajouter-une-integration.md)
-- [Déploiement](docs/deploiement.md) : Docker, HTTPS, variables, sauvegarde
+- [Déploiement](docs/deploiement.md) : image `ghcr.io/ldesfontaine/mcp-maison:vX.Y.Z`, HTTPS, versions, variables, sauvegarde
 
 Skill Claude d'exemple : [`skills/publier/SKILL.md`](skills/publier/SKILL.md).

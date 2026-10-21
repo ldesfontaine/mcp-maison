@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
 import { getDisplayId, getUserFromAuth, type User } from '../identity/user.js';
+import { VERSION } from '../version.js';
 import { buildDownstreamHeaders } from './downstream.js';
 import { DEFAULT_MAX_RESULT_CHARS, replyError, type Logger, type Tool, type ToolContext } from './types.js';
 
@@ -18,7 +19,7 @@ export interface RunnerDependencies {
   authorizer: Authorizer;
 }
 
-const SERVER_INFO = { name: 'mcp-maison', version: '0.1.0' };
+const SERVER_INFO = { name: 'mcp-maison', version: VERSION };
 const MAX_ERROR_LENGTH = 500;
 
 /** Un McpServer par session MCP, avec tous les outils chargés. */

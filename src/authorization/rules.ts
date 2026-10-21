@@ -1,6 +1,7 @@
 import { parse } from 'yaml';
 import { z } from 'zod';
 import type { User } from '../identity/user.js';
+import type { Authorizer } from './authorizer.js';
 
 // Une permission s'écrit "groupe:action" (ex. "gitlab:publish"). Dans permissions.yaml,
 // "*" donne tout, "gitlab:*" donne toutes les actions du groupe gitlab.
@@ -41,4 +42,12 @@ export function matchesPermission(granted: string, wanted: string): boolean {
 
 export function rulesGrant(rules: PermissionRules, user: User, permission: string): boolean {
   return listGrantedPermissions(rules, user).some((granted) => matchesPermission(granted, permission));
+}
+
+/** Un Authorizer sur des règles fixes (ex. les droits minimaux quand il n'y a pas de fichier). */
+export function createRulesAuthorizer(rules: PermissionRules): Authorizer {
+  return {
+    can: (user, permission) => rulesGrant(rules, user, permission),
+    listPermissions: (user) => listGrantedPermissions(rules, user)
+  };
 }

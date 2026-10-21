@@ -6,7 +6,9 @@ import type { User } from '../identity/user.js';
  */
 export interface Authorizer {
   can(user: User, permission: string): boolean;
+  /** Les permissions accordées, telles qu'écrites dans la source (ex. "gitlab:*") : whoami les montre. */
+  listPermissions(user: User): string[];
 }
 
-/** Sans fichier de droits : tout utilisateur identifié peut tout appeler. */
-export const allowEverything: Authorizer = { can: () => true };
+/** Sans fichier de droits : de quoi vérifier sa connexion, rien d'autre. Jamais de "*" implicite. */
+export const MINIMAL_PERMISSIONS = ['core:ping', 'core:whoami'];

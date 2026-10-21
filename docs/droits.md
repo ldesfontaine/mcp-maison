@@ -9,26 +9,36 @@ l'`Authorizer` si la personne l'a. L'implémentation fournie lit `permissions.ya
 // src/authorization/authorizer.ts
 export interface Authorizer {
   can(user: User, permission: string): boolean;
+  listPermissions(user: User): string[]; // ce que whoami montre
 }
 ```
 
 C'est tout ce que le reste du code connaît des droits (le runner des outils, `GET /audit`, `whoami`).
 Brancher une autre source (table SQL, annuaire, API d'un SI) = écrire une autre classe qui implémente
-`can`, et la choisir dans `loadAuthorizer` (`src/authorization/permissions-file.ts`). Rien d'autre ne bouge.
+ces deux méthodes, et la choisir dans `loadAuthorizer` (`src/authorization/permissions-file.ts`). Rien d'autre ne bouge.
 
 ## Sans fichier
 
-Pas de `permissions.yaml` (et `PERMISSIONS_FILE` vide) : tout utilisateur identifié peut tout appeler.
-Le serveur l'écrit au démarrage. À garder pour un usage perso.
+Pas de `permissions.yaml` (et `PERMISSIONS_FILE` vide) : **droits minimaux pour tous**, quel que soit le
+mode d'identification (OIDC ou jetons de dev). Chaque personne authentifiée a seulement `core:ping` et
+`core:whoami` : elle peut vérifier sa connexion et voir pourquoi le reste lui est refusé, rien de plus
+(ni `core:audit`, ni `gitlab:*`). Le serveur l'annonce au démarrage :
+
+```
+[droits] aucun permissions.yaml : droits minimaux pour tous (core:ping, core:whoami)
+```
+
+Il n'y a de `*` nulle part par défaut : tout droit au-delà du minimum s'écrit dans `permissions.yaml`.
 
 Si `PERMISSIONS_FILE` est renseigné et que le fichier manque, le serveur **refuse de démarrer** :
-une faute de chemin ne doit pas tout ouvrir.
+c'est une faute de chemin, pas un choix.
 
 ## Le fichier
 
 ```yaml
 everyone:                 # toute personne connectée
-  - core:read
+  - core:ping
+  - core:whoami
 
 users:                    # par identifiant (User.id, voir whoami)
   lucas: ["*"]
@@ -59,7 +69,8 @@ est écrite une fois dans les logs (avec sa position). Corriger le fichier suffi
 
 | Permission | Outils |
 | --- | --- |
-| `core:read` | `ping`, `whoami` |
+| `core:ping` | `ping` |
+| `core:whoami` | `whoami` |
 | `core:audit` | `audit_recent`, `GET /audit` |
 | `gitlab:read` | `gitlab_list_publications` |
 | `gitlab:publish` | `gitlab_publish` |
@@ -85,7 +96,8 @@ Côté journal, une ligne `denied: true`, sans exécuter l'outil :
  "ok":false,"denied":true,"error":"permission gitlab:publish manquante"}
 ```
 
-`whoami` montre à chacun ses groupes et ses outils permis.
+`whoami` montre à chacun ses groupes, ses permissions effectives (`permissions`, telles qu'écrites dans les
+règles, ex. `gitlab:*`) et les outils qu'elles ouvrent (`allowedTools`).
 
 ## Limites connues
 

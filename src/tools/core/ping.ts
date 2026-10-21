@@ -5,7 +5,7 @@ export const pingTool = defineTool({
   name: 'ping',
   description: 'Test de connectivité : renvoie "pong" et l\'heure du serveur.',
   inputSchema: {},
-  permission: 'core:read',
+  permission: 'core:ping',
   annotations: { readOnlyHint: true },
   handler: () => replyText(`pong — ${new Date().toISOString()}`)
 });

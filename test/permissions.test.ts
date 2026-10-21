@@ -2,13 +2,13 @@ import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { stringify } from 'yaml';
-import { allowEverything } from '../src/authorization/authorizer.js';
+import { MINIMAL_PERMISSIONS } from '../src/authorization/authorizer.js';
 import { loadAuthorizer } from '../src/authorization/permissions-file.js';
 import { listGrantedPermissions, matchesPermission, rulesGrant, type PermissionRules } from '../src/authorization/rules.js';
 import { callTool, DEV_TOKENS, extractText, startMcp, tempDir } from './helpers.js';
 
 const rules: PermissionRules = {
-  everyone: ['core:read'],
+  everyone: ['core:ping', 'core:whoami'],
   users: { lucas: ['*'] },
   groups: { 'exemple/dev': ['gitlab:*'] }
 };
@@ -32,13 +32,19 @@ describe('règles de droits', () => {
 
   it('cumule everyone, l\'utilisateur et ses groupes', () => {
     const user = { id: 'marie', provider: 'oidc' as const, groups: ['exemple/dev'] };
-    expect(listGrantedPermissions(rules, user)).toEqual(['core:read', 'gitlab:*']);
+    expect(listGrantedPermissions(rules, user)).toEqual(['core:ping', 'core:whoami', 'gitlab:*']);
     expect(rulesGrant(rules, user, 'gitlab:publish')).toBe(true);
     expect(rulesGrant(rules, user, 'core:audit')).toBe(false);
   });
 
-  it('sans fichier de règles, tout est permis (usage perso)', () => {
-    expect(allowEverything.can({ id: 'x', provider: 'dev-token' }, 'gitlab:publish')).toBe(true);
+  it('sans fichier de règles : droits minimaux (ping, whoami), jamais "*" implicite', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const authorizer = loadAuthorizer(); // pas de ./permissions.yaml dans le dépôt
+    const user = { id: 'x', provider: 'oidc' as const };
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('aucun permissions.yaml : droits minimaux pour tous'));
+    expect(authorizer.listPermissions(user)).toEqual(MINIMAL_PERMISSIONS);
+    expect(authorizer.can(user, 'core:whoami')).toBe(true);
+    for (const denied of ['core:audit', 'gitlab:publish', 'gitlab:read']) expect(authorizer.can(user, denied)).toBe(false);
   });
 
   it('PERMISSIONS_FILE demandé mais absent => erreur (ne jamais tout ouvrir par accident)', () => {
@@ -71,6 +77,7 @@ describe('refus appliqués par le serveur', () => {
 
   it('whoami liste les outils permis ; /audit exige core:audit', async () => {
     const bob = JSON.parse(extractText(await callTool(mcp.url, BOB, 'whoami')));
+    expect(bob.permissions).toEqual(['core:ping', 'core:whoami']);
     expect(bob.allowedTools).toEqual(['ping', 'whoami']);
     expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${BOB}` } })).status).toBe(403);
     const entries = await (await fetch(`${mcp.url}/audit?tool=gitlab_publish`, { headers: { Authorization: `Bearer ${LUCAS}` } })).json();

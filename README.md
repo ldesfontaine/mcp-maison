@@ -5,7 +5,7 @@ Serveur MCP distant, multi-utilisateurs, à outils enfichables. À brancher comm
 
 - **Qui appelle** : connexion via n'importe quel IdP OpenID Connect (GitLab, Keycloak, Authentik…).
   Des jetons de développement servent aux tests et au poste local, jamais en production.
-- **Qui peut quoi** : `permissions.yaml`, par personne et par groupe. Absent : tout le monde a tout.
+- **Qui peut quoi** : `permissions.yaml`, par personne et par groupe. Absent : droits minimaux (ping, whoami) pour tous.
 - **Qu'a-t-on fait** : un journal JSON Lines, une ligne par appel, refus compris.
 
 Groupes d'outils fournis, activés par `TOOL_GROUPS` :

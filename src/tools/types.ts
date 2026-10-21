@@ -14,6 +14,7 @@ export interface ToolContext {
   user: User; // qui appelle
   logger: Logger; // préfixé par l'outil et l'utilisateur
   audit: AuditLog;
+  permissions: string[]; // permissions accordées, telles qu'écrites dans les règles
   allowedTools: string[]; // outils que cet utilisateur peut appeler
   /** Ajoute des détails à la ligne de journal de cet appel (ex. { commitId }). */
   note(details: Record<string, unknown>): void;

@@ -15,7 +15,7 @@ export const helloTool = defineTool({
   inputSchema: {
     name: z.string().min(1).max(50).describe('Prénom de la personne à saluer')
   },
-  permission: 'core:read',
+  permission: 'core:hello', // nouvelle permission : à accorder dans permissions.yaml
   annotations: { readOnlyHint: true },
   handler: ({ name }, { user, note }) => {
     note({ greeted: name }); // ajouté à la ligne de journal

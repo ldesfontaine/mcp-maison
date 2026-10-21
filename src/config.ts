@@ -36,7 +36,7 @@ const coreEnv = z.object({
   // --- Données ---
   DATABASE_PATH: z.string().default('./data/mcp-maison.db'),
   AUDIT_LOG_PATH: z.string().default('./data/audit.jsonl'),
-  PERMISSIONS_FILE: z.string().optional(), // absent : ./permissions.yaml s'il existe, sinon tout est permis
+  PERMISSIONS_FILE: z.string().optional(), // absent : ./permissions.yaml s'il existe, sinon droits minimaux
 
   // --- Outils ---
   TOOL_GROUPS: z.string().default('core')

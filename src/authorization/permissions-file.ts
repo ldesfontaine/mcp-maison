@@ -1,20 +1,22 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import type { User } from '../identity/user.js';
-import { allowEverything, type Authorizer } from './authorizer.js';
-import { parsePermissionRules, rulesGrant, type PermissionRules } from './rules.js';
+import { MINIMAL_PERMISSIONS, type Authorizer } from './authorizer.js';
+import {
+  createRulesAuthorizer, listGrantedPermissions, parsePermissionRules, rulesGrant, type PermissionRules
+} from './rules.js';
 
 const DEFAULT_PERMISSIONS_FILE = './permissions.yaml';
 
 /**
- * Choisit l'Authorizer. Fichier absent au chemin par défaut : tout est permis (usage perso).
- * Fichier demandé explicitement mais absent : erreur, car ce serait tout ouvrir par accident.
+ * Choisit l'Authorizer. Fichier absent au chemin par défaut : droits minimaux pour tous (ping, whoami).
+ * Fichier demandé explicitement mais absent : erreur, car c'est une faute de chemin, pas un choix.
  */
 export function loadAuthorizer(explicitPath?: string): Authorizer {
   const path = explicitPath ?? DEFAULT_PERMISSIONS_FILE;
   if (existsSync(path)) return new PermissionsFileAuthorizer(path);
   if (explicitPath) throw new Error(`PERMISSIONS_FILE=${explicitPath} introuvable`);
-  console.warn('[droits] aucun permissions.yaml : tout utilisateur identifié peut appeler tous les outils.');
-  return allowEverything;
+  console.warn(`[droits] aucun permissions.yaml : droits minimaux pour tous (${MINIMAL_PERMISSIONS.join(', ')})`);
+  return createRulesAuthorizer({ everyone: MINIMAL_PERMISSIONS, users: {}, groups: {} });
 }
 
 /**
@@ -34,6 +36,11 @@ export class PermissionsFileAuthorizer implements Authorizer {
   can(user: User, permission: string): boolean {
     this.reloadIfChanged();
     return rulesGrant(this.rules, user, permission);
+  }
+
+  listPermissions(user: User): string[] {
+    this.reloadIfChanged();
+    return listGrantedPermissions(this.rules, user);
   }
 
   private reloadIfChanged() {

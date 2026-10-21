@@ -12,7 +12,7 @@ const whoami = async (url: string, token: string) => JSON.parse(extractText(awai
 async function startWithOidc(idp: ReturnType<typeof fakeOidc>, extraEnv: Record<string, string> = {}) {
   const idpServer = await listen(idp.app);
   const mcp = await startMcp({ ...oidcEnv(idpServer.url), ...extraEnv }, {
-    rules: { everyone: ['core:read'], users: {}, groups: { integrateurs: ['gitlab:*'] } }
+    rules: { everyone: ['core:ping', 'core:whoami'], users: {}, groups: { integrateurs: ['gitlab:*'] } }
   });
   stops.push(() => idpServer.server.close(), mcp.stop);
   return { mcp, idpUrl: idpServer.url };

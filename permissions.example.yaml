@@ -1,10 +1,11 @@
 # Droits par personne et par groupe. Copier en permissions.yaml (ou pointer PERMISSIONS_FILE dessus).
-# Sans fichier, tout utilisateur identifié peut appeler tous les outils.
+# Sans fichier : droits minimaux pour tous (core:ping, core:whoami), rien d'autre.
 # Permission = "groupe:action". "*" = tout ; "gitlab:*" = toutes les actions du groupe gitlab.
 # Les droits s'additionnent : everyone + users.<id> + groups.<groupe> de chaque groupe de la personne.
 
 everyone:            # toute personne connectée
-  - core:read        # ping, whoami
+  - core:ping        # ping
+  - core:whoami      # whoami : identité, permissions effectives, outils permis
 
 users:               # par identifiant (preferred_username OIDC, ou id de AUTH_DEV_TOKENS)
   lucas: ["*"]

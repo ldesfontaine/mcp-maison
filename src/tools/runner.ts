@@ -49,6 +49,7 @@ async function runTool(tool: Tool, args: Record<string, unknown>, user: User, de
   const notes: Record<string, unknown> = {};
   const ctx: ToolContext = {
     user, audit: deps.audit, logger: createLogger(tool.name, user),
+    permissions: deps.authorizer.listPermissions(user),
     allowedTools: deps.tools.filter((t) => deps.authorizer.can(user, t.permission)).map((t) => t.name),
     note: (details) => Object.assign(notes, details)
   };

@@ -80,16 +80,34 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
   };
 }
 
-/** Faux GitLab, côté API seulement (groupe d'outils gitlab) : tree et commits. */
+/**
+ * Faux GitLab, côté API seulement (groupe d'outils gitlab) : un dépôt en mémoire. tree liste les fichiers
+ * d'un dossier (404 s'il n'existe pas), commits enregistre les actions et répond à « dernier commit sur un chemin ».
+ */
 export function fakeGitlab() {
   const app = express();
-  const commits: Record<string, unknown>[] = [];
-  app.use(express.json());
-  app.get('/api/v4/projects/:id/repository/tree', (_req, res) => void res.status(404).json({ message: '404 Tree Not Found' }));
+  const commits: Record<string, any>[] = [];
+  const files = new Set<string>();
+  app.use(express.json({ limit: '20mb' }));
+  app.get('/api/v4/projects/:id/repository/tree', (req, res) => {
+    const dir = String(req.query.path ?? '');
+    const inside = [...files].filter((path) => path.startsWith(`${dir}/`));
+    if (!inside.length) return void res.status(404).json({ message: '404 Tree Not Found' });
+    res.json(inside.map((path) => ({ path, name: path.split('/').at(-1), type: 'blob' })));
+  });
+  app.get('/api/v4/projects/:id/repository/commits', (req, res) => {
+    const dir = String(req.query.path ?? '');
+    const touching = commits.filter((commit) => commit.actions.some((a: { file_path: string }) => a.file_path.startsWith(`${dir}/`)));
+    res.json(touching.reverse().slice(0, 1).map((commit) => ({
+      author_name: commit.author_name ?? 'Compte du token', committed_date: '2026-10-20T09:30:00Z', web_url: commit.web_url
+    })));
+  });
   app.post('/api/v4/projects/:id/repository/commits', (req, res) => {
     if (req.headers['private-token'] !== 'server-token') return void res.status(401).end();
-    commits.push(req.body);
-    res.status(201).json({ id: 'c0ffee', web_url: 'https://gitlab.test/demo/-/commit/c0ffee' });
+    const commit = { ...req.body, web_url: `https://gitlab.test/demo/-/commit/c0ffee${commits.length}` };
+    commits.push(commit);
+    for (const action of req.body.actions) files.add(action.file_path);
+    res.status(201).json({ id: 'c0ffee', web_url: commit.web_url });
   });
-  return { app, commits };
+  return { app, commits, files };
 }

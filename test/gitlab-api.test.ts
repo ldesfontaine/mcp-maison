@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { listPublishedSlugs, publishFiles } from '../src/tools/gitlab/api.js';
+import { listPublishedSlugs, publishFiles, SlugTakenError } from '../src/tools/gitlab/api.js';
 import { gitlabConfig } from '../src/tools/gitlab/config.js';
 
 const config = gitlabConfig.parse({
@@ -22,7 +22,7 @@ describe('API GitLab', () => {
     const result = await publishFiles(config, 'acme', [
       { path: 'index.html', content: '<h1>v2</h1>' },
       { path: 'assets/app.css', content: 'body{}' }
-    ], 'maj démo');
+    ], { message: 'maj démo', overwrite: true });
 
     const [treeUrl, treeInit] = fetchMock.mock.calls[0];
     expect(treeUrl).toContain('https://gitlab.example.com/api/v4/projects/web%2Fdemo/repository/tree?');
@@ -57,10 +57,22 @@ describe('API GitLab', () => {
   it('auteur sans e-mail : "(via id)" dans le message, pas de author_name/author_email', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(json([])).mockResolvedValueOnce(json({ id: 'a1', web_url: 'u' }, 201));
     vi.stubGlobal('fetch', fetchMock);
-    await publishFiles(config, 'x2', [{ path: 'a.html', content: '' }], 'v1', { id: 'bob', name: 'bob' });
+    await publishFiles(config, 'x2', [{ path: 'a.html', content: '' }], { message: 'v1', author: { id: 'bob', name: 'bob' } });
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(body.commit_message).toBe('v1 (via bob)');
     expect(body).not.toHaveProperty('author_email');
+  });
+
+  it('slug déjà publié sans overwrite : SlugTakenError avec le dernier commit, aucun commit envoyé', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json([{ path: 'acme/index.html', name: 'index.html', type: 'blob' }]))
+      .mockResolvedValueOnce(json([{ author_name: 'Marie C.', committed_date: '2026-10-19T08:00:00Z', web_url: 'u' }]));
+    vi.stubGlobal('fetch', fetchMock);
+    const attempt = publishFiles(config, 'acme', [{ path: 'index.html', content: 'x' }]);
+    await expect(attempt).rejects.toBeInstanceOf(SlugTakenError);
+    await expect(attempt).rejects.toMatchObject({ lastCommit: { authorName: 'Marie C.' } });
+    expect(fetchMock.mock.calls[1][0]).toContain('/repository/commits?path=acme&ref_name=main&per_page=1');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('remonte une erreur GitLab lisible', async () => {

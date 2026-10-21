@@ -13,7 +13,7 @@ Groupes d'outils fournis, activés par `TOOL_GROUPS` :
 | Groupe | Outils |
 | --- | --- |
 | `core` | `ping`, `whoami`, `audit_recent` |
-| `gitlab` | `gitlab_publish`, `gitlab_list_publications` : maquettes sur demo.example.com via commit + CI |
+| `gitlab` | `gitlab_publish`, `gitlab_list_publications` : maquettes sur demo.example.com via commit + CI ; un slug existant n'est remplacé qu'avec `overwrite` |
 
 ```bash
 cp .env.example .env && npm install && npm run check   # lint + build + tests

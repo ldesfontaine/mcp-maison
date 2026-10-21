@@ -23,6 +23,11 @@ describe('configuration', () => {
     expect(parseConfig(OIDC).oidc).toMatchObject({ issuer: OIDC.OIDC_ISSUER, scopes: 'openid profile email', groupsClaim: 'groups' });
   });
 
+  it('MCP_PUBLIC_URL : origine seule, sans chemin', () => {
+    expect(() => parseConfig({ ...OIDC, MCP_PUBLIC_URL: 'https://mcp.example.com/mcp' })).toThrow(/MCP_PUBLIC_URL: origine seule/);
+    expect(parseConfig({ ...OIDC, MCP_PUBLIC_URL: 'https://mcp.example.com/' }).oidc?.publicUrl).toBe('https://mcp.example.com/');
+  });
+
   it('AUTH_DEV_TOKENS : accepté hors production, refusé avec NODE_ENV=production', () => {
     expect(parseConfig(DEV).devUsers.size).toBe(1);
     expect(() => parseConfig({ ...DEV, ...OIDC, NODE_ENV: 'production' })).toThrow(/AUTH_DEV_TOKENS: interdit avec NODE_ENV=production/);

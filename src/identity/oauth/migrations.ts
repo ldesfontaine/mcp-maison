@@ -44,5 +44,11 @@ ALTER TABLE oauth_tokens ADD COLUMN username TEXT;
 CREATE INDEX oauth_tokens_username ON oauth_tokens (username);
 DELETE FROM oauth_tokens;
 DELETE FROM oauth_codes;`
+  },
+  {
+    version: 4,
+    name: 'scopes demandés à /authorize, gardés jusqu\'aux jetons',
+    sql: `
+ALTER TABLE oauth_codes ADD COLUMN scopes TEXT NOT NULL DEFAULT '';`
   }
 ];

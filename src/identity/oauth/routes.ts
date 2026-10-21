@@ -5,6 +5,7 @@ import { deriveKey } from '../secrets.js';
 import { AuthorizationServer } from './authorization-server.js';
 import { requireClientSecret } from './clients.js';
 import { IdpGateway } from './idp-gateway.js';
+import { SUPPORTED_SCOPES } from './sign-in-flow.js';
 import { createOidcClient } from './oidc.js';
 import { OAuthStore } from './store.js';
 
@@ -29,19 +30,20 @@ export function mountOAuth(app: Express, oidc: OidcConfig, databasePath: string)
   // Limites de débit relevées : tous les utilisateurs de claude.ai arrivent des mêmes IP Anthropic.
   // Secrets DCR sans échéance : sinon Claude perdrait la connexion au bout de 30 jours.
   app.use(mcpAuthRouter({
-    provider: server, issuerUrl: base, resourceServerUrl: resource, resourceName: RESOURCE_NAME, scopesSupported: ['mcp'],
+    provider: server, issuerUrl: base, resourceServerUrl: resource, resourceName: RESOURCE_NAME, scopesSupported: SUPPORTED_SCOPES,
     clientRegistrationOptions: { rateLimit: { max: 200 }, clientSecretExpirySeconds: 0 },
     tokenOptions: { rateLimit: { max: 500 } }
   }));
   // Certains clients sondent la métadonnée ressource à la racine avant le chemin /mcp.
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
-    res.json({ resource: resource.href, authorization_servers: [base.href], scopes_supported: ['mcp'], resource_name: RESOURCE_NAME });
+    res.json({ resource: resource.href, authorization_servers: [base.href], scopes_supported: SUPPORTED_SCOPES, resource_name: RESOURCE_NAME });
   });
   app.get('/oauth/callback', async (req, res) => {
     try {
-      res.redirect(302, await server.handleCallback(req.query as Record<string, string>));
+      res.redirect(302, await server.signIn.handleCallback(req.query as Record<string, string>));
     } catch (error) {
-      res.status(400).type('text/plain').send(`Connexion impossible : ${(error as Error).message}`);
+      console.warn(`[oauth] retour de l'IdP refusé : ${(error as Error).message}`);
+      res.status(400).type('text/plain').send('Connexion impossible : demande inconnue ou expirée. Recommencer depuis Claude.');
     }
   });
 

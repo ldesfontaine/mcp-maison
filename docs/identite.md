@@ -34,6 +34,11 @@ il envoie la personne chez l'IdP, lit son identité sur `userinfo`, puis émet s
 - L'identité vient de `userinfo`, appelé avec le jeton reçu du `token_endpoint` en TLS :
   l'`id_token` n'est pas utilisé, donc pas validé.
 - Accès 1 h, refresh 30 jours, rotation à chaque usage. Un refresh présenté deux fois révoque toute sa famille.
+- Le scope demandé à `/authorize` (seul `mcp` existe) est gardé jusqu'aux jetons ; un refresh ne peut pas l'élargir.
+  `redirect_uri` est exigé à l'échange du code. `/revoke` coupe toute la famille du jeton, pour son seul client.
+- Un refus de connexion renvoie à Claude un message générique ; la raison (compte non autorisé, IdP en erreur…)
+  est dans les logs du serveur (`[oauth] connexion refusée : …`).
+- Les clients DCR sans aucun jeton depuis 30 jours sont purgés (Claude en crée un par connexion).
 - Codes, jetons et secrets de client sont hachés en base. Seul le verifier PKCE envoyé à l'IdP est en clair, 10 minutes.
 - `OIDC_ALLOWED_USERS` / `OIDC_ALLOWED_GROUPS` filtrent qui peut se connecter. Vides : tout compte de l'IdP.
 - Un client ne s'enregistre (DCR) qu'avec des adresses de retour de `OAUTH_REDIRECT_ALLOWLIST` ; sinon

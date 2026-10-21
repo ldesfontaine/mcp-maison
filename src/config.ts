@@ -19,7 +19,8 @@ const coreEnv = z.object({
   TRUST_PROXY: z.string().optional(), // "1" derrière un reverse proxy
 
   // --- Identité : OIDC (production) ---
-  MCP_PUBLIC_URL: z.url().optional(), // URL publique de CE serveur, sans /mcp
+  MCP_PUBLIC_URL: z.url().refine((url) => new URL(url).pathname === '/', 'origine seule, sans chemin (ex. https://mcp.example.com)')
+    .optional(), // URL publique de CE serveur ; /mcp, /token… sont pris à la racine
   OIDC_ISSUER: z.url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
   OIDC_CLIENT_SECRET: z.string().refine((value) => !isPlaceholder(value), PLACEHOLDER_MESSAGE).optional(),

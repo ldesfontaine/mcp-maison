@@ -28,8 +28,12 @@ describe('identité OIDC (découverte .well-known, userinfo)', () => {
   });
 
   it('OIDC_ALLOWED_GROUPS : un compte hors des groupes autorisés est renvoyé vers Claude avec access_denied', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { mcp, idpUrl } = await startWithOidc(fakeOidc(claims()), { OIDC_ALLOWED_GROUPS: 'admins' });
-    await expect(connectLikeClaude(mcp.url, idpUrl)).rejects.toThrow(/pas de code : utilisateur marie non autorisé/);
+    // Claude reçoit un message générique ; le détail (qui, pourquoi) est dans les logs du serveur.
+    await expect(connectLikeClaude(mcp.url, idpUrl)).rejects.toThrow(/pas de code : connexion refusée par le serveur$/);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('utilisateur marie non autorisé'));
+    warn.mockRestore();
   });
 
   it('un IdP qui annonce un autre issuer est refusé', async () => {

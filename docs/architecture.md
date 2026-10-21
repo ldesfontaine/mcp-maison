@@ -23,7 +23,9 @@ src/identity/
   dev-tokens.ts                AUTH_DEV_TOKENS et le vérificateur Bearer
   secrets.ts                   empreintes, secrets aléatoires, chiffrement
   oauth/routes.ts              montage du serveur d'autorisation et de /oauth/callback
-  oauth/authorization-server.ts  OAuth 2.1 pour Claude : codes, jetons, rotation
+  oauth/authorization-server.ts  OAuth 2.1 pour Claude : jetons, rotation, révocation
+  oauth/sign-in-flow.ts        /authorize -> IdP -> /oauth/callback -> code pour Claude
+  oauth/redirect-allowlist.ts  où un code peut être renvoyé (OAUTH_REDIRECT_ALLOWLIST)
   oauth/idp-gateway.ts         ce qu'on demande à l'IdP : connexion, renouvellement, comptes autorisés
   oauth/oidc.ts                client OIDC générique : découverte, token_endpoint, userinfo
   oauth/idp-http.ts            appels à l'IdP bornés à 10 s ; « refuse » ou « ne répond pas »

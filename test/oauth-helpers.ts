@@ -3,6 +3,9 @@ import { expect } from 'vitest';
 
 export const CLAUDE_CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
 
+/** confidential : client avec secret ; scope : scopes demandés à /authorize. */
+interface FlowOptions { confidential?: boolean; scope?: string }
+
 const location = (response: Response) => new URL(response.headers.get('location')!);
 const form = (body: Record<string, string>) => ({
   method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body)
@@ -12,7 +15,7 @@ const form = (body: Record<string, string>) => ({
  * Joue le rôle de Claude : DCR, /authorize avec PKCE, passage par l'IdP (qui accepte tout de suite),
  * retour /oauth/callback, échange du code. `confidential` = client avec secret.
  */
-export async function connectLikeClaude(mcpUrl: string, idpOrigin: string, options: { confidential?: boolean } = {}) {
+export async function connectLikeClaude(mcpUrl: string, idpOrigin: string, options: FlowOptions = {}) {
   const metadata = await (await fetch(`${mcpUrl}/.well-known/oauth-authorization-server`)).json();
   const registration = await fetch(metadata.registration_endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -29,7 +32,7 @@ export async function connectLikeClaude(mcpUrl: string, idpOrigin: string, optio
   authorizeUrl.search = new URLSearchParams({
     response_type: 'code', client_id: client.client_id, redirect_uri: CLAUDE_CALLBACK, state: 'xyz',
     code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256',
-    resource: `${mcpUrl}/mcp`
+    resource: `${mcpUrl}/mcp`, ...(options.scope ? { scope: options.scope } : {})
   }).toString();
 
   const toIdp = await fetch(authorizeUrl, { redirect: 'manual' });
@@ -50,14 +53,14 @@ export async function connectLikeClaude(mcpUrl: string, idpOrigin: string, optio
     grant_type: 'refresh_token', refresh_token: refreshToken, client_id: client.client_id,
     ...(clientSecret ? { client_secret: clientSecret } : {})
   }));
-  return { metadata, client, verifier, exchange, refresh };
+  return { metadata, client, verifier, code, exchange, refresh };
 }
 
 /** Raccourci : connexion complète, renvoie les jetons. */
-export async function obtainTokens(mcpUrl: string, idpOrigin: string, options: { confidential?: boolean } = {}) {
+export async function obtainTokens(mcpUrl: string, idpOrigin: string, options: FlowOptions = {}) {
   const flow = await connectLikeClaude(mcpUrl, idpOrigin, options);
   const response = await flow.exchange(flow.verifier);
   expect(response.status).toBe(200);
-  const tokens = (await response.json()) as { access_token: string; refresh_token: string; token_type: string };
+  const tokens = (await response.json()) as { access_token: string; refresh_token: string; token_type: string; scope?: string };
   return { ...flow, tokens };
 }

@@ -5,19 +5,23 @@ import type { User } from '../user.js';
 import { openDatabase } from './database.js';
 
 export const getEpochSeconds = () => Math.floor(Date.now() / 1000);
+const UNUSED_CLIENT_TTL = 30 * 86400;
 
 /** La demande de Claude, gardée le temps de l'aller-retour chez l'IdP. */
-interface PendingRequest { clientId: string; redirectUri: string; state?: string; codeChallenge: string }
+interface PendingRequest { clientId: string; redirectUri: string; state?: string; codeChallenge: string; scopes: string[] }
 /** `sealedIdpRefresh` : refresh token de l'IdP, déjà chiffré par l'appelant. */
 export interface StoredCode {
-  clientId: string; challenge: string; redirectUri: string; user: User; sealedIdpRefresh?: string; expiresAt: number;
+  clientId: string; challenge: string; redirectUri: string; user: User; scopes: string[]; sealedIdpRefresh?: string;
+  expiresAt: number;
 }
 export interface StoredToken {
   kind: 'access' | 'refresh'; clientId: string; familyId: string; user: User; scopes: string[];
   sealedIdpRefresh?: string; expiresAt: number; usedAt?: number;
 }
 
-type CodeRow = { client_id: string; challenge: string; redirect_uri: string; user: string; idp_refresh: string | null; expires_at: number };
+type CodeRow = {
+  client_id: string; challenge: string; redirect_uri: string; user: string; scopes: string; idp_refresh: string | null; expires_at: number;
+};
 type TokenRow = Pick<CodeRow, 'client_id' | 'user' | 'idp_refresh' | 'expires_at'> & {
   kind: 'access' | 'refresh'; family_id: string; scopes: string; used_at: number | null;
 };
@@ -54,10 +58,10 @@ export class OAuthStore {
   }
 
   saveCode(code: string, stored: StoredCode) {
-    this.db.prepare(`INSERT INTO oauth_codes (code_hash, client_id, challenge, redirect_uri, user, idp_refresh, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    this.db.prepare(`INSERT INTO oauth_codes
+      (code_hash, client_id, challenge, redirect_uri, user, scopes, idp_refresh, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(hashSecret(code), stored.clientId, stored.challenge, stored.redirectUri, JSON.stringify(stored.user),
-        stored.sealedIdpRefresh ?? null, stored.expiresAt);
+        stored.scopes.join(' '), stored.sealedIdpRefresh ?? null, stored.expiresAt);
   }
 
   findCode(code: string): StoredCode | undefined {
@@ -110,6 +114,10 @@ export class OAuthStore {
     for (const table of ['oauth_pending', 'oauth_codes', 'oauth_tokens']) {
       this.db.prepare(`DELETE FROM ${table} WHERE expires_at < ?`).run(now);
     }
+    // DCR crée un client par connexion : ceux qui n'ont plus aucun jeton depuis 30 jours ne servent plus.
+    this.db.prepare(`DELETE FROM oauth_clients WHERE created_at < ?
+      AND client_id NOT IN (SELECT client_id FROM oauth_tokens) AND client_id NOT IN (SELECT client_id FROM oauth_codes)`)
+      .run(now - UNUSED_CLIENT_TTL);
   }
 
   close() {
@@ -120,6 +128,6 @@ export class OAuthStore {
 function mapRowToCode(row: CodeRow): StoredCode {
   return {
     clientId: row.client_id, challenge: row.challenge, redirectUri: row.redirect_uri, user: JSON.parse(row.user),
-    sealedIdpRefresh: row.idp_refresh ?? undefined, expiresAt: row.expires_at
+    scopes: row.scopes ? row.scopes.split(' ') : [], sealedIdpRefresh: row.idp_refresh ?? undefined, expiresAt: row.expires_at
   };
 }

@@ -14,11 +14,12 @@ function startServer() {
     console.warn('[identité] AUTH_DEV_TOKENS actif : jetons de développement acceptés. Interdit en production (NODE_ENV=production).');
   }
 
-  const httpServer = app.listen(config.PORT, config.HOST, () => {
+  // Express 5 appelle ce callback aussi en cas d'échec (port pris, adresse invalide).
+  const httpServer = app.listen(config.PORT, config.HOST, (error?: Error) => {
+    if (error) exitWithError(`écoute impossible sur ${config.HOST}:${config.PORT} : ${error.message}`);
     const names = tools.map((tool) => tool.name).join(', ') || 'aucun';
     console.log(`mcp-maison prêt sur http://${config.HOST}:${config.PORT}/mcp — identité : ${describeIdentity(config).join(' + ')} — outils : ${names}`);
   });
-  httpServer.on('error', (error) => exitWithError(`écoute impossible sur ${config.HOST}:${config.PORT} : ${error.message}`));
 
   // Arrêt propre (docker stop) : sessions fermées, base SQLite refermée.
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

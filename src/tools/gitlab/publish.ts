@@ -31,7 +31,8 @@ export function createPublishTool(config: GitlabConfig) {
       overwrite: z.boolean().default(false).describe('Remplace un slug déjà publié, après accord de l\'utilisateur')
     },
     permission: 'gitlab:publish',
-    annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    // overwrite remplace des fichiers publiés ; chaque appel accepté fait un commit et un déploiement.
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
 
     // Journal : jamais le contenu, seulement le slug, le nombre et les chemins.
     auditArgs: ({ slug, files, message, overwrite }) => ({

@@ -29,7 +29,7 @@ export const auditRecentTool = defineTool({
     tool: z.string().max(100).optional().describe('Filtrer sur un outil')
   },
   permission: 'core:audit',
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, openWorldHint: false }, // sans effet, rien hors du serveur
   async handler(filter, { audit }) {
     const entries = await audit.listRecent(filter);
     if (!entries.length) return replyText('Journal vide pour ce filtre.');

@@ -15,7 +15,7 @@ export const whoamiTool = defineTool({
     'Renvoie l\'identité vue par le serveur et les outils permis.',
   inputSchema: {},
   permission: 'core:whoami',
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, openWorldHint: false }, // sans effet, rien hors du serveur
   handler: (_args, { user, permissions, allowedTools }) => replyText(JSON.stringify({
     ...user, allowedTools, ...(isUseful(permissions, allowedTools) ? { permissions } : {})
   }))

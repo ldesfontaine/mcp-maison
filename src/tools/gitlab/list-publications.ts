@@ -22,7 +22,7 @@ export function createListPublicationsTool(config: GitlabConfig) {
       cursor: z.string().max(100).optional().describe('nextCursor de la réponse précédente')
     },
     permission: 'gitlab:read',
-    annotations: { readOnlyHint: true, openWorldHint: true },
+    annotations: { readOnlyHint: true, openWorldHint: true }, // lit GitLab
     async handler({ limit, cursor }) {
       const after = cursor === undefined ? undefined : decodeCursor(cursor);
       if (cursor !== undefined && !after) return replyError('cursor invalide : relancer sans cursor.');

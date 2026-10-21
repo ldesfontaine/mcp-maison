@@ -61,6 +61,21 @@ describe('budget de définition des outils', () => {
     expect(JSON.stringify(tools).length, JSON.stringify(sizes)).toBeLessThan(BUDGET.total);
   });
 
+  it('annotations justes : Claude s\'en sert pour confirmer, ou pas, et pour relancer, ou pas', () => {
+    const annotations = Object.fromEntries(tools.map((tool) => [tool.name, tool.annotations]));
+    const local = { readOnlyHint: true, openWorldHint: false };
+    expect(annotations).toEqual({
+      ping: local, whoami: local, audit_recent: local,
+      gitlab_list_publications: { readOnlyHint: true, openWorldHint: true },
+      gitlab_publish: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
+    });
+  });
+
+  it('ping se décrit en 8 mots au plus', () => {
+    const ping = tools.find((tool) => tool.name === 'ping')!;
+    expect(ping.description!.split(/\s+/).filter((word) => /\w/.test(word)).length).toBeLessThanOrEqual(8);
+  });
+
   it('rien d\'inutile à Claude dans la définition : ni "$schema", ni execution par défaut', () => {
     for (const tool of tools) {
       expect(tool.inputSchema, tool.name).not.toHaveProperty('$schema');

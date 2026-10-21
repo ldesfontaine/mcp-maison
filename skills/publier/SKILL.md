@@ -1,11 +1,11 @@
 ---
 name: publier
-description: Publie une maquette, une page ou un livrable HTML sur l'espace de démo (demo.example.com) via les outils MCP gitlab_list_publications et gitlab_publish du connecteur mcp-maison. À utiliser quand l'utilisateur demande de « mettre en ligne », « publier », « déployer sur demo », « mettre à jour la maquette » ou « partager un lien » pour une page produite dans la conversation.
+description: Publie une page ou un livrable HTML sur un espace de publication statique déployé par la CI d'un dépôt GitLab (ex. demo.example.com), via les outils MCP gitlab_list_publications et gitlab_publish du connecteur mcp-maison. À utiliser quand l'utilisateur demande de « mettre en ligne », « publier », « déployer », « mettre à jour la page » ou « partager un lien » pour une page produite dans la conversation.
 ---
 
-# Publier sur l'espace de démo
+# Publier sur l'espace de publication
 
-`gitlab_publish` commite des fichiers sous `<slug>/` dans le dépôt de démo ; la CI du dépôt déploie ensuite
+`gitlab_publish` commite des fichiers sous `<slug>/` dans le dépôt de publication ; la CI du dépôt déploie ensuite
 le dossier sur `https://demo.example.com/<slug>/`. **Toute publication est visible par qui a le lien.**
 Le serveur sait qui est connecté : le commit et le journal sont à son nom, rien à préciser dans les arguments.
 
@@ -23,15 +23,15 @@ Une mise à jour suit le même cycle, avec le même slug.
    **relatifs** seulement, ex. `assets/logo.png`). Binaires en base64 avec `encoding: "base64"`.
    Extensions acceptées : html css js mjs json svg png jpg jpeg gif webp ico woff woff2 ttf txt pdf map xml
    webmanifest. Aucun fichier ni dossier commençant par un point (`.htaccess`, `.env`…).
-2. **Choisir le slug** depuis le client ou le projet : minuscules, accents retirés, espaces et ponctuation en `-`,
-   2 à 63 caractères, `^[a-z0-9-]+$`. Ex. « Maquette Dupont & Fils — v2 » → `maquette-dupont-fils`.
+2. **Choisir le slug** depuis le titre ou le sujet de la page : minuscules, accents retirés, espaces et ponctuation en `-`,
+   2 à 63 caractères, `^[a-z0-9-]+$`. Ex. « Page produit — v2 » → `page-produit-v2`.
 3. **Vérifier l'existant** : appeler `gitlab_list_publications`. Si le slug existe déjà, appeler `audit_recent`
    avec ce `slug` pour savoir qui l'a publié et quand (si l'outil est permis), et le dire.
 4. **Demander confirmation**, en une seule question : slug, URL finale, liste des fichiers, nouveau ou mise à jour,
    rappel que la page est publique. Un autre slug proposé : le normaliser et reconfirmer.
    **Slug déjà publié** : dire qui l'a publié et quand, et demander explicitement « remplacer la publication
    existante ? ». Sans un « oui » clair à cette question précise, proposer un autre slug.
-5. **Publier** : `gitlab_publish` avec `slug`, `files` et un `message` court (ex. `maquette acme v2`).
+5. **Publier** : `gitlab_publish` avec `slug`, `files` et un `message` court (ex. `page produit v2`).
    `overwrite: true` **seulement** si l'utilisateur a accepté le remplacement à l'étape 4. Si l'outil répond
    « déjà publié » alors qu'on pensait le slug libre, revenir à l'étape 4 : ne jamais rappeler avec
    `overwrite: true` de sa propre initiative.
@@ -40,7 +40,7 @@ Une mise à jour suit le même cycle, avec le même slug.
 ## Ne pas publier
 
 - Un simple aperçu demandé : rester dans la conversation.
-- Du contenu sensible (mots de passe, données personnelles, tarifs internes non validés) : le signaler.
+- Du contenu sensible (mots de passe, données personnelles, informations confidentielles) : le signaler.
 
 ## En cas d'erreur
 

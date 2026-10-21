@@ -128,14 +128,12 @@ c'est ce qui s'écrit dans `permissions.yaml`. L'e-mail n'arrive que si la perso
 
 Source : [Custom connectors (support Claude)](https://support.claude.com/en/articles/11175166).
 
-## Pourquoi pas Redmine comme IdP
+## Un outil sans OIDC natif
 
-Redmine n'a pas de fournisseur OpenID Connect natif : il sait être client (LDAP, SSO par plugins), pas IdP.
-Les options, dans l'ordre :
-1. **GitLab reste l'IdP**, Redmine devient un groupe d'outils (`src/tools/redmine/`) qui appelle son API avec
-   une clé de service, en indiquant l'utilisateur connecté dans ce qu'il écrit.
-2. **Un IdP commun** (Keycloak, Authentik) branché sur le même annuaire que Redmine et GitLab.
-3. **Un plugin OIDC fournisseur sur Redmine** : ce n'est alors qu'un `OIDC_ISSUER` de plus, sans code.
+Un outil sans fournisseur OpenID Connect natif (ex. Redmine : il sait être client, pas IdP) ne peut pas
+servir d'IdP. Il devient un groupe d'outils (`src/tools/<groupe>/`) qui appelle son API avec une clé de
+service, en indiquant la personne connectée dans ce qu'il écrit. Si l'outil propose un plugin OIDC
+fournisseur, ce n'est qu'un `OIDC_ISSUER` de plus, sans code.
 
 ## Retirer quelqu'un
 

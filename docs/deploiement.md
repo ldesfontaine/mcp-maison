@@ -97,7 +97,7 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `PERMISSIONS_FILE` | ./permissions.yaml s'il existe | Droits (`droits.md`) |
 | `TOOL_GROUPS` | core | Groupes d'outils activés, ex. `core,gitlab` |
 | `GITLAB_URL` | | Groupe gitlab : l'instance |
-| `GITLAB_PROJECT_ID` | | Le dépôt de démo (ID ou chemin) |
+| `GITLAB_PROJECT_ID` | | Le dépôt de publication (ID ou chemin) |
 | `GITLAB_TOKEN` | | Token de projet qui pousse (scope api) |
 | `GITLAB_BRANCH` | main | Branche publiée |
 | `GITLAB_PUBLISH_BASE_URL` | | URL où la CI publie `<slug>/` |

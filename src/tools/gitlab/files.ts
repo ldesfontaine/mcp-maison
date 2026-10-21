@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Ce qu'une page de démo statique contient. Le reste (php, sh, htaccess…) n'a rien à faire sur demo.
+// Ce qu'une page statique publiée contient. Le reste (php, sh, htaccess…) n'a rien à faire sur un hébergement statique.
 export const ALLOWED_EXTENSIONS = [
   'html', 'css', 'js', 'mjs', 'json', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico',
   'woff', 'woff2', 'ttf', 'txt', 'pdf', 'map', 'xml', 'webmanifest'

@@ -7,7 +7,7 @@ export function createListPublicationsTool(config: GitlabConfig) {
     name: 'gitlab_list_publications',
     title: 'Lister les publications',
     description:
-      'Liste les slugs déjà publiés dans le dépôt de démo (dossiers à la racine de la branche) ' +
+      'Liste les slugs déjà publiés dans le dépôt de publication (dossiers à la racine de la branche) ' +
       'avec leur URL publique. ' +
       'À appeler avant gitlab_publish pour éviter d\'écraser une publication existante, ou pour retrouver un lien.',
     inputSchema: {},

@@ -13,7 +13,8 @@ export function createPublishTool(config: GitlabConfig) {
     name: 'gitlab_publish',
     title: 'Publier sur GitLab',
     description:
-      'Publie un ensemble de fichiers (page HTML, assets…) dans le dépôt GitLab de démo, sous le dossier <slug>/, ' +
+      'Publie un ensemble de fichiers (page HTML, assets…) dans le dépôt GitLab de publication, ' +
+      'sous le dossier <slug>/, ' +
       'en un seul commit attribué à l\'utilisateur connecté. La CI du dépôt déploie ensuite le dossier. ' +
       'Renvoie l\'URL publique et le lien du commit. Un slug déjà publié est refusé, sauf overwrite: true, ' +
       'à n\'utiliser qu\'après confirmation explicite de l\'utilisateur. Ne supprime jamais rien. ' +

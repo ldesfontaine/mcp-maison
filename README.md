@@ -17,6 +17,7 @@ Groupes d'outils fournis, activés par `TOOL_GROUPS` :
 
 ```bash
 cp .env.example .env && npm install && npm run check   # lint + build + tests
+echo "AUTH_DEV_TOKENS=lucas:$(openssl rand -hex 32)" >> .env  # un jeton de dev (jamais en production)
 set -a; . ./.env; set +a; npm run dev
 ```
 

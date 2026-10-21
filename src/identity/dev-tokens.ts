@@ -1,6 +1,7 @@
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
+import { isPlaceholder } from '../placeholders.js';
 import { hashSecret } from './secrets.js';
 import type { User } from './user.js';
 
@@ -19,6 +20,7 @@ export function parseDevTokens(spec: string): Map<string, User> {
     const token = entry.slice(separator + 1);
     if (separator < 1 || !/^[A-Za-z0-9._-]+$/.test(id)) throw new Error(`entrée n°${index + 1} : format identifiant:jeton attendu`);
     if (token.length < MIN_TOKEN_LENGTH) throw new Error(`jeton de "${id}" trop court (${MIN_TOKEN_LENGTH} caractères minimum)`);
+    if (isPlaceholder(token)) throw new Error(`jeton de "${id}" : valeur d'exemple à remplacer (openssl rand -hex 32)`);
     if (usersByHash.has(hashSecret(token))) throw new Error(`jeton en double (identifiant "${id}")`);
     usersByHash.set(hashSecret(token), { id, username: id, name: id, provider: 'dev-token' });
   });

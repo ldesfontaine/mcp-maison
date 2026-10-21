@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from '../src/config.js';
+import { gitlabConfig } from '../src/tools/gitlab/config.js';
 
+const GITLAB = {
+  GITLAB_URL: 'https://gitlab.example.com', GITLAB_PROJECT_ID: '1', GITLAB_TOKEN: 'glpat-Hq83v1sZ0pLw',
+  GITLAB_PUBLISH_BASE_URL: 'https://demo.example.com'
+};
 const DEV = { AUTH_DEV_TOKENS: 'lucas:0123456789abcdef-secret' };
 const OIDC = {
   MCP_PUBLIC_URL: 'https://mcp.example.com', OIDC_ISSUER: 'https://gitlab.example.com',
@@ -33,5 +38,12 @@ describe('configuration', () => {
 
   it('une variable vide compte comme absente', () => {
     expect(() => parseConfig({ AUTH_DEV_TOKENS: '' })).toThrow(/aucune identité configurée/);
+  });
+
+  it('valeurs d\'exemple refusées : jeton de dev, secret OIDC, token GitLab', () => {
+    expect(() => parseConfig({ AUTH_DEV_TOKENS: 'lucas:remplacer-par-openssl-rand-hex-32' })).toThrow(/valeur d'exemple/);
+    expect(() => parseConfig({ ...OIDC, OIDC_CLIENT_SECRET: '<Secret>' })).toThrow(/OIDC_CLIENT_SECRET: valeur d'exemple/);
+    expect(() => gitlabConfig.parse({ ...GITLAB, GITLAB_TOKEN: 'glpat-xxxxxxxxxxxxxxxxxxxx' })).toThrow(/GITLAB_TOKEN invalide/);
+    expect(gitlabConfig.parse(GITLAB).token).toBe('glpat-Hq83v1sZ0pLw');
   });
 });

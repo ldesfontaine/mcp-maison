@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { parseDevTokens } from './identity/dev-tokens.js';
 import { DEFAULT_REDIRECT_ALLOWLIST, isAllowlistEntryValid } from './identity/oauth/redirect-allowlist.js';
 import type { User } from './identity/user.js';
+import { isPlaceholder, PLACEHOLDER_MESSAGE } from './placeholders.js';
 
 // Configuration du cœur, validée une fois au démarrage. Chaque groupe d'outils valide la sienne
 // (src/tools/<groupe>/config.ts) : un groupe mal configuré est ignoré, le serveur démarre quand même.
@@ -21,7 +22,7 @@ const coreEnv = z.object({
   MCP_PUBLIC_URL: z.url().optional(), // URL publique de CE serveur, sans /mcp
   OIDC_ISSUER: z.url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
-  OIDC_CLIENT_SECRET: z.string().optional(),
+  OIDC_CLIENT_SECRET: z.string().refine((value) => !isPlaceholder(value), PLACEHOLDER_MESSAGE).optional(),
   OIDC_SCOPES: z.string().default('openid profile email'),
   OIDC_GROUPS_CLAIM: z.string().default('groups'),
   OIDC_ALLOWED_USERS: z.string().optional(),

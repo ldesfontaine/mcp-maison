@@ -89,10 +89,15 @@ describe('refus appliqués par le serveur', () => {
     });
   });
 
-  it('whoami liste les outils permis ; /audit exige core:audit', async () => {
+  it('whoami liste les outils permis, et les permissions seulement si elles disent plus', async () => {
     const bob = JSON.parse(extractText(await callTool(mcp.url, BOB, 'whoami')));
-    expect(bob.permissions).toEqual(['core:ping', 'core:whoami']);
     expect(bob.allowedTools).toEqual(['ping', 'whoami']);
+    expect(bob).not.toHaveProperty('permissions'); // core:ping, core:whoami : une par outil, rien de plus
+    const lucas = JSON.parse(extractText(await callTool(mcp.url, LUCAS, 'whoami')));
+    expect(lucas.permissions).toContain('*'); // un joker : utile en plus de la liste des outils
+  });
+
+  it('/audit exige core:audit', async () => {
     expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${BOB}` } })).status).toBe(403);
     const lucasAuth = { headers: { Authorization: `Bearer ${LUCAS}` } };
     const entries = await (await fetch(`${mcp.url}/audit?tool=gitlab_publish`, lucasAuth)).json();

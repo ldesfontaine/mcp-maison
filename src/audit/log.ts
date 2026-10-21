@@ -14,6 +14,7 @@ export interface AuditEntry {
   ok: boolean;
   denied?: boolean; // refusé par permissions.yaml, l'outil n'a pas tourné
   error?: string;
+  truncated?: boolean; // résultat tronqué par le runner (maxResultChars)
   ms: number;
 }
 

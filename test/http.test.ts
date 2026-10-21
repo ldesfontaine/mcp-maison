@@ -1,12 +1,7 @@
-import express from 'express';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { AuditLog } from '../src/audit/log.js';
-import { createRulesAuthorizer } from '../src/authorization/rules.js';
-import { createMcpSessions } from '../src/mcp-sessions.js';
-import { buildMcpServer } from '../src/tools/runner.js';
 import { defineTool } from '../src/tools/types.js';
 import { fakeOidc } from './fakes.js';
-import { callTool, DEV_TOKENS, extractText, listen, oidcEnv, startMcp, tempDir } from './helpers.js';
+import { callTool, DEV_TOKENS, extractText, listen, oidcEnv, startMcp, startToolServer } from './helpers.js';
 
 const INITIALIZE = JSON.stringify({
   jsonrpc: '2.0', id: 1, method: 'initialize',
@@ -50,23 +45,14 @@ describe('erreur interne d\'un outil', () => {
       name: 'boom', description: 'x', inputSchema: {}, permission: 'core:ping',
       handler: () => { throw new Error('mot de passe SQL refusé pour db-interne:5432'); }
     });
-    const audit = new AuditLog(`${tempDir()}/audit.jsonl`);
-    const authorizer = createRulesAuthorizer({ everyone: ['*'], users: {}, groups: {} });
-    const sessions = createMcpSessions(() => buildMcpServer({ tools: [failing], audit, authorizer }));
-    const app = express();
-    app.use('/mcp', express.json(), (req, _res, next) => {
-      req.auth = { token: 't', clientId: 'c', scopes: [], extra: { user: { id: 'lucas', provider: 'dev-token' } } };
-      next();
-    }, sessions.router);
-    const server = await listen(app);
+    const server = await startToolServer([failing]);
 
     const result = await callTool(server.url, 'ignoré', 'boom');
     expect(result.isError).toBe(true);
     expect(extractText(result)).toBe('Erreur interne : l\'outil a échoué. Le détail est dans les logs du serveur.');
     expect(error).toHaveBeenCalledWith(expect.stringContaining('[boom] [lucas] erreur interne'), expect.any(Error));
-    expect((await audit.listRecent())[0].error).toContain('db-interne');
-    await sessions.closeAll();
-    server.server.close();
+    expect((await server.audit.listRecent())[0].error).toContain('db-interne');
+    await server.stop();
     error.mockRestore();
   });
 });

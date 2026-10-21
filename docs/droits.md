@@ -99,8 +99,10 @@ Côté journal, une ligne `denied: true`, sans exécuter l'outil :
  "ok":false,"denied":true,"error":"permission gitlab:publish manquante"}
 ```
 
-`whoami` montre à chacun ses groupes, ses permissions effectives (`permissions`, telles qu'écrites dans les
-règles, ex. `gitlab:*`) et les outils qu'elles ouvrent (`allowedTools`).
+`whoami` montre à chacun ses groupes et les outils qu'il peut appeler (`allowedTools`). Ses permissions
+(`permissions`, telles qu'écrites dans les règles) ne sont ajoutées que si elles disent plus : un joker
+(`*`, `gitlab:*`) ou une permission sans outil chargé. Sinon ce serait la même liste, une permission par outil.
+`audit_recent` donne une ligne courte par appel (sans arguments ni message d'erreur) ; `GET /audit` donne tout.
 
 ## Limites connues
 

@@ -30,6 +30,8 @@ export interface Tool<S extends z.ZodRawShape = z.ZodRawShape> {
   inputSchema: S; // forme zod, convertie en JSON Schema par le SDK
   permission: string; // "groupe:action", vérifiée avant chaque appel
   annotations?: ToolAnnotations;
+  /** Taille maximale du texte renvoyé (défaut DEFAULT_MAX_RESULT_CHARS) ; au-delà, le runner tronque. */
+  maxResultChars?: number;
   // Écrits en méthodes : un Tool<{ slug… }> reste rangeable dans un Tool[] (paramètres bivariants).
   /** Résumé des arguments pour le journal (défaut : summarizeArgs). Jamais de contenu ni de secret. */
   auditArgs?(args: ArgsOf<S>): Record<string, unknown>;
@@ -42,6 +44,9 @@ export interface ToolGroup {
   envKeys: string[]; // les seules variables que createTools recevra
   createTools(env: Record<string, string>): Tool[];
 }
+
+/** Un résultat est payé une fois puis relu à chaque tour : au-delà, le runner tronque (voir sobriete-tokens.md). */
+export const DEFAULT_MAX_RESULT_CHARS = 4_000;
 
 /** Aide au typage des arguments : `defineTool({ ... })`. */
 export const defineTool = <S extends z.ZodRawShape>(tool: Tool<S>): Tool<S> => tool;

@@ -1,4 +1,5 @@
 import { SLUG_PATTERN } from '../slug.js';
+import { cleanUpstreamError } from '../upstream-error.js';
 import type { GitlabConfig } from './config.js';
 
 export interface PublishFile {
@@ -20,6 +21,7 @@ export interface PublishResult {
   commitId: string;
   created: string[];
   updated: string[];
+  overwritten: boolean; // le slug était déjà publié
 }
 
 export interface PublishOptions {
@@ -44,6 +46,10 @@ type TreeItem = { path: string; name: string; type: 'blob' | 'tree' };
 const READ_TIMEOUT_MS = 10_000;
 const COMMIT_TIMEOUT_MS = 30_000;
 
+/** Le corps d'une réponse en erreur, nettoyé (sans HTML ni jeton) et borné. */
+const readError = async (config: GitlabConfig, response: Response) =>
+  cleanUpstreamError(await response.text(), [config.token]);
+
 /** Appel à l'API REST GitLab v4 du projet configuré, borné dans le temps. */
 async function callProjectApi(config: GitlabConfig, path: string, init: RequestInit = {}): Promise<Response> {
   const timeout = init.method === 'POST' ? COMMIT_TIMEOUT_MS : READ_TIMEOUT_MS;
@@ -65,7 +71,7 @@ async function listTree(config: GitlabConfig, dir: string, recursive: boolean): 
   while (next) {
     const response = await callProjectApi(config, next);
     if (response.status === 404) return items;
-    if (!response.ok) throw new Error(`GitLab tree ${response.status}: ${await response.text()}`);
+    if (!response.ok) throw new Error(`GitLab tree ${response.status}: ${await readError(config, response)}`);
     items.push(...((await response.json()) as TreeItem[]));
     // Page suivante : en-tête Link rel="next" (URL absolue), on garde la partie après /projects/:id
     const link = response.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1];
@@ -83,6 +89,28 @@ async function listExistingFiles(config: GitlabConfig, dir: string): Promise<Set
 export async function listPublishedSlugs(config: GitlabConfig): Promise<string[]> {
   const items = await listTree(config, '', false);
   return items.filter((item) => item.type === 'tree' && SLUG_PATTERN.test(item.name)).map((item) => item.name).sort();
+}
+
+export interface PublicationPage {
+  items: { slug: string; updatedAt: string | null }[]; // updatedAt : AAAA-MM-JJ du dernier commit
+  last?: string; // dernier slug de la page, s'il en reste après
+}
+
+const LAST_COMMIT_CONCURRENCY = 10;
+
+/** Une page de publications, par ordre alphabétique après `after` ; une requête « dernier commit » par slug. */
+export async function listPublications(
+  config: GitlabConfig, { limit, after }: { limit: number; after?: string }
+): Promise<PublicationPage> {
+  const remaining = (await listPublishedSlugs(config)).filter((slug) => !after || slug > after);
+  const slugs = remaining.slice(0, limit);
+  const items: PublicationPage['items'] = [];
+  for (let start = 0; start < slugs.length; start += LAST_COMMIT_CONCURRENCY) {
+    const batch = slugs.slice(start, start + LAST_COMMIT_CONCURRENCY);
+    const commits = await Promise.all(batch.map((slug) => findLastCommit(config, slug).catch(() => undefined)));
+    batch.forEach((slug, index) => items.push({ slug, updatedAt: commits[index]?.date.slice(0, 10) ?? null }));
+  }
+  return { items, last: remaining.length > limit ? slugs.at(-1) : undefined };
 }
 
 /** Dernier commit sur <slug>/ dans la branche publiée ; undefined si GitLab n'en trouve pas. */
@@ -127,7 +155,10 @@ export async function publishFiles(
   }
 
   const response = await callProjectApi(config, '/repository/commits', { method: 'POST', body: JSON.stringify(body) });
-  if (!response.ok) throw new Error(`GitLab commit ${response.status}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`GitLab commit ${response.status}: ${await readError(config, response)}`);
   const commit = (await response.json()) as { id: string; web_url: string };
-  return { publicUrl: buildPublicUrl(config, slug), commitUrl: commit.web_url, commitId: commit.id, created, updated };
+  return {
+    publicUrl: buildPublicUrl(config, slug), commitUrl: commit.web_url, commitId: commit.id, created, updated,
+    overwritten: existing.size > 0
+  };
 }

@@ -1,5 +1,12 @@
 import { defineTool, replyText } from '../types.js';
 
+/**
+ * `permissions` n'est renvoyé que s'il apprend quelque chose de plus que `allowedTools` : un joker
+ * ("*", "gitlab:*"), ou une permission sans outil chargé. Sinon il ne fait que les répéter, une par outil.
+ */
+const isUseful = (permissions: string[], allowedTools: string[]) =>
+  permissions.some((permission) => permission.includes('*')) || permissions.length !== allowedTools.length;
+
 export const whoamiTool = defineTool({
   name: 'whoami',
   title: 'Qui suis-je',
@@ -9,6 +16,7 @@ export const whoamiTool = defineTool({
   inputSchema: {},
   permission: 'core:whoami',
   annotations: { readOnlyHint: true },
-  handler: (_args, { user, permissions, allowedTools }) =>
-    replyText(JSON.stringify({ ...user, permissions, allowedTools }, null, 2))
+  handler: (_args, { user, permissions, allowedTools }) => replyText(JSON.stringify({
+    ...user, allowedTools, ...(isUseful(permissions, allowedTools) ? { permissions } : {})
+  }))
 });

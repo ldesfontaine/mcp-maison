@@ -81,11 +81,15 @@ describe('API GitLab', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('remonte une erreur GitLab lisible', async () => {
+  it('remonte une erreur GitLab lisible : le message seul, sans HTML ni jeton', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(new Response('{"message":"403 Forbidden"}', { status: 403 })));
-    await expect(publishFiles(config, 'x1', [{ path: 'a.html', content: '' }])).rejects.toThrow(/GitLab commit 403/);
+    await expect(publishFiles(config, 'x1', [{ path: 'a.html', content: '' }]))
+      .rejects.toThrow(/^GitLab commit 403: 403 Forbidden$/);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(
+      new Response('<html><body><p>jeton glpat-test refusé</p></body></html>', { status: 500 })));
+    await expect(listPublishedSlugs(config)).rejects.toThrow(/^GitLab tree 500: jeton \[jeton\] refusé$/);
   });
 
   it('liste les publications : dossiers racine au nom de slug, sur deux pages', async () => {

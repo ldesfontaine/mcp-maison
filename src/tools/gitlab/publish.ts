@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getDisplayId } from '../../identity/user.js';
 import { SLUG_PATTERN, SLUG_RULE } from '../slug.js';
 import { defineTool, replyError, replyText } from '../types.js';
+import { cleanUpstreamError } from '../upstream-error.js';
 import { publishFiles, SlugTakenError, type PublishResult } from './api.js';
 import type { GitlabConfig } from './config.js';
 import { safePath } from './files.js';
@@ -46,29 +47,27 @@ export function createPublishTool(config: GitlabConfig) {
         note({ commitId: result.commitId, commitUrl: result.commitUrl, publicUrl: result.publicUrl,
           created: result.created.length, updated: result.updated.length });
         logger.info(`publié ${result.publicUrl} (${result.commitId})`);
-        return replyText(describePublication(result, getDisplayId(user)));
+        return replyText(describePublication(result));
       } catch (error) {
         if (error instanceof SlugTakenError) return replyError(describeSlugTaken(error));
-        return replyError(`Échec de la publication : ${(error as Error).message}`);
+        return replyError(`Échec de la publication : ${cleanUpstreamError((error as Error).message, [config.token])}`);
       }
     }
   });
 }
 
-function describePublication(result: PublishResult, who: string): string {
-  return [
-    `Publié : ${result.publicUrl}`,
-    `Commit : ${result.commitUrl}`,
-    `Par : ${who} — Créés : ${result.created.length} — Mis à jour : ${result.updated.length}`,
-    '(La page est en ligne une fois la CI du dépôt terminée.)'
-  ].join('\n');
+/** Une phrase, puis l'essentiel : jamais l'objet commit GitLab complet. */
+function describePublication(result: PublishResult): string {
+  const summary = {
+    url: result.publicUrl, commitUrl: result.commitUrl, commitId: result.commitId.slice(0, 8),
+    files: result.created.length + result.updated.length, overwritten: result.overwritten
+  };
+  return `Publié ; en ligne quand la CI du dépôt a fini (une à deux minutes).\n${JSON.stringify(summary)}`;
 }
 
 function describeSlugTaken({ slug, lastCommit }: SlugTakenError): string {
   const last = lastCommit
-    ? `dernière publication par ${lastCommit.authorName} le ${lastCommit.date.slice(0, 10)} (${lastCommit.url})`
+    ? `dernière publication par ${lastCommit.authorName} le ${lastCommit.date.slice(0, 10)}`
     : 'auteur de la dernière publication inconnu';
-  return `Le slug « ${slug} » est déjà publié : ${last}. Rien n'a été écrit. ` +
-    'Pour le remplacer, demander d\'abord confirmation à l\'utilisateur, puis rappeler avec overwrite: true ; ' +
-    'sinon, choisir un autre slug.';
+  return `Le slug « ${slug} » est déjà publié : ${last}. Rien n'a été écrit ; overwrite: true le remplace.`;
 }

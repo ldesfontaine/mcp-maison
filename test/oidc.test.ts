@@ -129,12 +129,13 @@ describe('identité relue chez l\'IdP à chaque refresh', () => {
     });
     stops.push(() => idpServer.server.close(), mcp.stop);
     const { tokens, refresh } = await obtainTokens(mcp.url, idpServer.url);
-    const granted = ['core:ping', 'core:whoami', 'core:audit'];
-    expect((await whoami(mcp.url, tokens.access_token)).permissions).toEqual(granted);
+    // Une permission exacte par outil permis : whoami ne répète pas permissions (voir docs/droits.md).
+    const granted = { allowedTools: ['ping', 'whoami', 'audit_recent'] };
+    expect(await whoami(mcp.url, tokens.access_token)).toMatchObject(granted);
 
     idp.claims.preferred_username = 'marie-renommee';
     const renewed = await (await refresh(tokens.refresh_token)).json();
     const me = await whoami(mcp.url, renewed.access_token);
-    expect(me).toMatchObject({ id: 'f3a1', username: 'marie-renommee', permissions: granted });
+    expect(me).toMatchObject({ id: 'f3a1', username: 'marie-renommee', ...granted });
   });
 });

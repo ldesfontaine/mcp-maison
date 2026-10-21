@@ -27,7 +27,11 @@ describe('gitlab_publish', () => {
     expect(gitlab.commits).toHaveLength(1);
 
     const replaced = await publish({ slug: 'acme', files: page(), overwrite: true });
-    expect(extractText(replaced)).toContain('Mis à jour : 1');
+    const summary = JSON.parse(extractText(replaced).split('\n')[1]);
+    expect(summary).toEqual({
+      url: 'https://demo.invalid/acme/', commitUrl: 'https://gitlab.test/demo/-/commit/c0ffee1',
+      commitId: 'c0ffee', files: 1, overwritten: true
+    });
     expect(gitlab.commits).toHaveLength(2);
   });
 

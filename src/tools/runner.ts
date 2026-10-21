@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
 import { getDisplayId, getUserFromAuth, type User } from '../identity/user.js';
-import { replyError, type Logger, type Tool, type ToolContext } from './types.js';
+import { DEFAULT_MAX_RESULT_CHARS, replyError, type Logger, type Tool, type ToolContext } from './types.js';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -88,10 +88,30 @@ async function runTool(
     console.error(`[${tool.name}] [${getDisplayId(user)}] erreur interne :`, error);
     result = replyError('Erreur interne : l\'outil a échoué. Le détail est dans les logs du serveur.');
   }
+  const bounded = boundResult(result, tool.maxResultChars ?? DEFAULT_MAX_RESULT_CHARS);
   await deps.audit.write({
-    ...entry, ok: !entry.error, result: Object.keys(notes).length ? notes : undefined, ms: Date.now() - started
+    ...entry, ok: !entry.error, result: Object.keys(notes).length ? notes : undefined,
+    truncated: bounded.truncated || undefined, ms: Date.now() - started
   });
-  return result;
+  return bounded.result;
+}
+
+/** Tronque le texte d'un résultat au-delà de `max` caractères, avec un marqueur qui dit combien sur combien. */
+export function boundResult(result: CallToolResult, max: number): { result: CallToolResult; truncated: boolean } {
+  const total = result.content.reduce((sum, item) => sum + (item.type === 'text' ? item.text.length : 0), 0);
+  if (total <= max) return { result, truncated: false };
+  let budget = max;
+  const content: CallToolResult['content'] = [];
+  for (const item of result.content) {
+    if (item.type !== 'text') content.push(item);
+    else if (budget > 0) {
+      content.push({ ...item, text: item.text.slice(0, budget) });
+      budget -= item.text.length;
+    }
+  }
+  const last = content.filter((item) => item.type === 'text').at(-1);
+  if (last) last.text += `\n[… tronqué, ${max} caractères sur ${total}]`;
+  return { result: { ...result, content }, truncated: true };
 }
 
 function extractText(result: CallToolResult): string {

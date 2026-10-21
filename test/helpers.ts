@@ -3,12 +3,16 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
-import type { Express } from 'express';
+import express, { type Express } from 'express';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { stringify } from 'yaml';
 import { createApp } from '../src/app.js';
-import type { PermissionRules } from '../src/authorization/rules.js';
+import { AuditLog } from '../src/audit/log.js';
+import { createRulesAuthorizer, type PermissionRules } from '../src/authorization/rules.js';
+import { createMcpSessions } from '../src/mcp-sessions.js';
+import { buildMcpServer } from '../src/tools/runner.js';
+import type { Tool } from '../src/tools/types.js';
 import { IDP_CLIENT } from './fakes.js';
 
 /** Jetons de développement présents dans chaque serveur de test. */
@@ -84,3 +88,21 @@ export async function callTool(url: string, token: string, name: string, args: R
 /** Le texte d'un résultat d'outil. */
 export const extractText = (result: Awaited<ReturnType<typeof callTool>>): string =>
   (result.content as { text?: string }[]).map((item) => item.text ?? '').join('\n');
+
+/** Un serveur MCP minimal autour d'outils donnés, appelé en tant que lucas, avec tous les droits. */
+export async function startToolServer(tools: Tool[]) {
+  const audit = new AuditLog(`${tempDir()}/audit.jsonl`);
+  const authorizer = createRulesAuthorizer({ everyone: ['*'], users: {}, groups: {} });
+  const sessions = createMcpSessions(() => buildMcpServer({ tools, audit, authorizer }));
+  const app = express();
+  app.use('/mcp', express.json(), (req, _res, next) => {
+    req.auth = { token: 't', clientId: 'c', scopes: [], extra: { user: { id: 'lucas', provider: 'dev-token' } } };
+    next();
+  }, sessions.router);
+  const server = await listen(app);
+  const stop = async () => {
+    await sessions.closeAll();
+    server.server.close();
+  };
+  return { url: server.url, audit, stop };
+}

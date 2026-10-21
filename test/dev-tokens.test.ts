@@ -48,11 +48,13 @@ describe('AUTH_DEV_TOKENS', () => {
     const result = await callTool(mcp.url, LUCAS, 'gitlab_publish', { slug: 'demo-x', files });
     expect(result.isError).toBe(true);
     const log = extractText(await callTool(mcp.url, LUCAS, 'audit_recent', { slug: 'demo-x' }));
-    const [entry] = JSON.parse(log);
-    expect(entry).toMatchObject({
-      user: 'lucas', tool: 'gitlab_publish', ok: false, args: { slug: 'demo-x', fileCount: 1, paths: ['index.html'] }
-    });
-    expect(entry.error).toMatch(/Échec de la publication/);
+    const [header, entry, ...rest] = log.split('\n');
+    expect(header).toBe('date (UTC) | utilisateur | outil | slug | statut | durée');
+    expect(entry).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d \| lucas \| gitlab_publish \| demo-x \| échec \| \d+ ms$/);
+    expect(rest).toEqual([]);
     expect(log).not.toContain('SECRET-CONTENT');
+    const [line] = await mcp.audit.listRecent({ slug: 'demo-x', tool: 'gitlab_publish' }); // le détail reste au journal
+    expect(line).toMatchObject({ args: { slug: 'demo-x', fileCount: 1, paths: ['index.html'] } });
+    expect(line.error).toMatch(/Échec de la publication/);
   });
 });

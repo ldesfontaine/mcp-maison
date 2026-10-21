@@ -85,7 +85,8 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
 
 /**
  * Faux GitLab, côté API seulement (groupe d'outils gitlab) : un dépôt en mémoire. tree liste les fichiers
- * d'un dossier (404 s'il n'existe pas), commits enregistre les actions et répond à « dernier commit sur un chemin ».
+ * d'un dossier (404 s'il n'existe pas) ou les dossiers de la racine, commits enregistre les actions et répond
+ * à « dernier commit sur un chemin ».
  */
 export function fakeGitlab() {
   const app = express();
@@ -94,6 +95,10 @@ export function fakeGitlab() {
   app.use(express.json({ limit: '20mb' }));
   app.get('/api/v4/projects/:id/repository/tree', (req, res) => {
     const dir = String(req.query.path ?? '');
+    if (!dir) { // racine, non récursif : les dossiers de premier niveau
+      const names = [...new Set([...files].map((path) => path.split('/')[0]))].sort();
+      return void res.json(names.map((name) => ({ path: name, name, type: 'tree' })));
+    }
     const inside = [...files].filter((path) => path.startsWith(`${dir}/`));
     if (!inside.length) return void res.status(404).json({ message: '404 Tree Not Found' });
     res.json(inside.map((path) => ({ path, name: path.split('/').at(-1), type: 'blob' })));

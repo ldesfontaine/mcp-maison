@@ -7,13 +7,13 @@ export const auditRecentTool = defineTool({
   name: 'audit_recent',
   title: 'Journal des actions',
   description:
-    'Renvoie les dernières entrées du journal d\'audit : qui a appelé quel outil, quand, avec quel résultat, ' +
-    'y compris les refus de droits. Utile pour savoir qui a publié un slug et quand.',
+    'Pour savoir qui a appelé quel outil et quand, refus compris. ' +
+    'Renvoie les dernières entrées du journal, la plus récente d\'abord.',
   inputSchema: {
-    limit: z.number().int().min(1).max(200).default(20).describe('Nombre d\'entrées (défaut 20)'),
-    slug: z.string().regex(SLUG_PATTERN).optional().describe('Filtrer sur un slug publié'),
-    user: z.string().max(100).optional().describe('Filtrer sur un identifiant d\'utilisateur'),
-    tool: z.string().max(100).optional().describe('Filtrer sur un nom d\'outil')
+    limit: z.number().int().min(1).max(200).default(20).describe('Nombre d\'entrées'),
+    slug: z.string().regex(SLUG_PATTERN).optional().describe('Filtrer sur un slug'),
+    user: z.string().max(100).optional().describe('Filtrer sur un utilisateur (id ou username)'),
+    tool: z.string().max(100).optional().describe('Filtrer sur un outil')
   },
   permission: 'core:audit',
   annotations: { readOnlyHint: true },

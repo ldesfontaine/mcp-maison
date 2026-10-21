@@ -23,6 +23,7 @@ Une mise à jour suit le même cycle, avec le même slug.
    **relatifs** seulement, ex. `assets/logo.png`). Binaires en base64 avec `encoding: "base64"`.
    Extensions acceptées : html css js mjs json svg png jpg jpeg gif webp ico woff woff2 ttf txt pdf map xml
    webmanifest. Aucun fichier ni dossier commençant par un point (`.htaccess`, `.env`…).
+   `gitlab_publish` ne supprime jamais rien : un fichier absent d'une mise à jour reste en ligne.
 2. **Choisir le slug** depuis le titre ou le sujet de la page : minuscules, accents retirés, espaces et ponctuation en `-`,
    2 à 63 caractères, `^[a-z0-9-]+$`. Ex. « Page produit — v2 » → `page-produit-v2`.
 3. **Vérifier l'existant** : appeler `gitlab_list_publications`. Si le slug existe déjà, appeler `audit_recent`

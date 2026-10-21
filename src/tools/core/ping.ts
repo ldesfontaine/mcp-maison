@@ -3,7 +3,7 @@ import { defineTool, replyText } from '../types.js';
 // Vérifie la chaîne client -> serveur sans rien toucher d'autre.
 export const pingTool = defineTool({
   name: 'ping',
-  description: 'Test de connectivité : renvoie "pong" et l\'heure du serveur.',
+  description: 'Test de connexion : renvoie pong et l\'heure.',
   inputSchema: {},
   permission: 'core:ping',
   annotations: { readOnlyHint: true },

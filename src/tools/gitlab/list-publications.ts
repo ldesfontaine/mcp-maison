@@ -6,10 +6,7 @@ export function createListPublicationsTool(config: GitlabConfig) {
   return defineTool({
     name: 'gitlab_list_publications',
     title: 'Lister les publications',
-    description:
-      'Liste les slugs déjà publiés dans le dépôt de publication (dossiers à la racine de la branche) ' +
-      'avec leur URL publique. ' +
-      'À appeler avant gitlab_publish pour éviter d\'écraser une publication existante, ou pour retrouver un lien.',
+    description: 'Pour retrouver une publication ou son lien. Renvoie les slugs publiés et leur URL.',
     inputSchema: {},
     permission: 'gitlab:read',
     annotations: { readOnlyHint: true, openWorldHint: true },

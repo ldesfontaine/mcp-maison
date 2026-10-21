@@ -1,6 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
+import {
+  ListToolsRequestSchema, type CallToolResult, type ServerNotification, type ServerRequest, type Tool as ToolDefinition
+} from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { summarizeArgs, type AuditEntry, type AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
 import { getDisplayId, getUserFromAuth, type User } from '../identity/user.js';
@@ -28,7 +31,25 @@ export function buildMcpServer(deps: RunnerDependencies): McpServer {
       (args: Record<string, unknown>, extra: Extra) => runTool(tool, args ?? {}, getUserFromAuth(extra.authInfo), deps)
     );
   }
+  // Remplace la liste du SDK par la même, sans ce que Claude paie à chaque conversation pour rien.
+  if (deps.tools.length) {
+    server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: deps.tools.map(toDefinition) }));
+  }
   return server;
+}
+
+/**
+ * La définition envoyée par tools/list, comme le SDK la construit, moins "$schema" (inutile à Claude) et
+ * execution.taskSupport (« forbidden » est la valeur par défaut quand il est absent).
+ */
+export function toDefinition(tool: Tool): ToolDefinition {
+  const { $schema: _unused, ...inputSchema } = z.toJSONSchema(z.object(tool.inputSchema), {
+    target: 'draft-7', io: 'input'
+  });
+  return {
+    name: tool.name, title: tool.title, description: tool.description,
+    inputSchema: inputSchema as ToolDefinition['inputSchema'], annotations: tool.annotations
+  };
 }
 
 /** Vérifie le droit, exécute, mesure, journalise. Un refus est journalisé comme un appel. */

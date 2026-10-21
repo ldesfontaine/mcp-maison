@@ -4,36 +4,30 @@ import { SLUG_PATTERN, SLUG_RULE } from '../slug.js';
 import { defineTool, replyError, replyText } from '../types.js';
 import { publishFiles, SlugTakenError, type PublishResult } from './api.js';
 import type { GitlabConfig } from './config.js';
-import { ALLOWED_EXTENSIONS, safePath } from './files.js';
+import { safePath } from './files.js';
 
 const slugSchema = z.string().regex(SLUG_PATTERN, SLUG_RULE);
 
 export function createPublishTool(config: GitlabConfig) {
   return defineTool({
     name: 'gitlab_publish',
-    title: 'Publier sur GitLab',
+    title: 'Publier une page',
+    // Payée à chaque conversation : la méthode (quand confirmer, que faire d'un refus) vit dans skills/publier.
     description:
-      'Publie un ensemble de fichiers (page HTML, assets…) dans le dépôt GitLab de publication, ' +
-      'sous le dossier <slug>/, ' +
-      'en un seul commit attribué à l\'utilisateur connecté. La CI du dépôt déploie ensuite le dossier. ' +
-      'Renvoie l\'URL publique et le lien du commit. Un slug déjà publié est refusé, sauf overwrite: true, ' +
-      'à n\'utiliser qu\'après confirmation explicite de l\'utilisateur. Ne supprime jamais rien. ' +
-      `Extensions acceptées : ${ALLOWED_EXTENSIONS.join(', ')} ; aucun fichier ni dossier commençant par un point.`,
+      'Pour mettre en ligne une page statique (HTML, assets) sous <slug>/, en un commit déployé par la CI. ' +
+      'Renvoie l\'URL publique, ou un refus si le slug est déjà publié, avec son dernier auteur.',
     inputSchema: {
-      slug: slugSchema.describe('Nom du dossier de publication, ex. "propale-acme-2026"'),
+      slug: slugSchema.describe('Dossier de publication, ex. "page-produit-v2"'),
       files: z
         .array(z.object({
-          path: safePath.describe('Chemin relatif dans <slug>/, ex. "index.html" ou "assets/logo.png"'),
-          content: z.string().describe('Contenu du fichier (texte brut, ou base64 si encoding="base64")'),
-          encoding: z.enum(['text', 'base64']).optional().describe('Défaut : text')
+          path: safePath.describe('Chemin relatif, ex. "index.html" ou "assets/logo.png"'),
+          content: z.string().describe('Texte brut, ou base64 si encoding="base64"'),
+          encoding: z.enum(['text', 'base64']).optional()
         }))
         .min(1)
-        .max(100)
-        .describe('Fichiers à publier'),
-      message: z.string().max(500).optional().describe('Message de commit (optionnel)'),
-      overwrite: z.boolean().default(false)
-        .describe('Remplacer un slug déjà publié. Faux par défaut ; '
-          + 'vrai seulement après accord explicite de l\'utilisateur.')
+        .max(100),
+      message: z.string().max(500).optional().describe('Message de commit'),
+      overwrite: z.boolean().default(false).describe('Remplace un slug déjà publié, après accord de l\'utilisateur')
     },
     permission: 'gitlab:publish',
     annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: true },

@@ -1,6 +1,7 @@
 # Ajouter un outil
 
 Un outil = un fichier dans le dossier de son groupe, puis une ligne dans le `index.ts` du groupe.
+Sa définition est payée dans chaque conversation : lire d'abord [Sobriété en tokens](sobriete-tokens.md).
 
 ## Exemple complet : `src/tools/core/hello.ts`
 
@@ -11,12 +12,12 @@ import { defineTool, replyText } from '../types.js';
 export const helloTool = defineTool({
   name: 'hello',
   title: 'Dire bonjour',
-  description: 'Salue quelqu\'un. À utiliser quand l\'utilisateur demande un bonjour signé.',
+  description: 'Pour un bonjour signé. Renvoie la phrase de salutation.',
   inputSchema: {
-    name: z.string().min(1).max(50).describe('Prénom de la personne à saluer')
+    name: z.string().min(1).max(50).describe('Prénom à saluer')
   },
   permission: 'core:hello', // nouvelle permission : à accorder dans permissions.yaml
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, openWorldHint: false },
   handler: ({ name }, { user, note }) => {
     note({ greeted: name }); // ajouté à la ligne de journal
     return replyText(`Bonjour ${name}, de la part de ${user.name ?? user.id} !`);
@@ -31,11 +32,13 @@ Puis dans `src/tools/core/index.ts` : `createTools: () => [pingTool, whoamiTool,
 | Champ | Rôle |
 | --- | --- |
 | `name` | `snake_case`, préfixé par le groupe (`gitlab_…`) sauf pour `core` |
-| `description` | Dit à Claude **quand** utiliser l'outil |
-| `inputSchema` | Champs zod ; le SDK valide avant l'appel |
+| `description` | « Pour <quand>. Renvoie <quoi>. » : 280 caractères, 2 phrases au plus |
+| `inputSchema` | Champs zod ; le SDK valide avant l'appel ; 6 au plus, `describe()` de 90 caractères au plus |
+| `annotations` | `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` : justes, Claude s'en sert |
+| `maxResultChars` | Taille maximale du résultat (défaut 4 000) ; au-delà, le runner tronque |
 | `permission` | `"groupe:action"`, doit commencer par le nom du groupe (vérifié au démarrage) |
 | `auditArgs` | Résumé des arguments pour le journal, dès qu'un argument est gros ou sensible |
-| `handler(args, ctx)` | `ctx = { user, logger, audit, allowedTools, note }` |
+| `handler(args, ctx)` | `ctx = { user, logger, audit, permissions, allowedTools, note }` |
 
 - `replyText('…')` pour la réponse, `replyError('message')` pour une erreur métier : Claude la lit et peut corriger ; journalisée `ok:false`.
 - Une exception devient « Erreur interne : … », journalisée aussi.
@@ -46,7 +49,7 @@ Puis dans `src/tools/core/index.ts` : `createTools: () => [pingTool, whoamiTool,
 
 ```bash
 npm run check                  # lint + build + tests : à lancer avant chaque commit
-npx vitest run test/permissions.test.ts
+npx vitest run test/token-budget.test.ts  # budget des définitions
 ```
 `test/helpers.ts` démarre le serveur complet (`startMcp`, par le même `createApp` que la production) et appelle
 un outil comme Claude (`callTool`), avec un jeton de développement (`DEV_TOKENS.lucas`, `DEV_TOKENS.bob`).

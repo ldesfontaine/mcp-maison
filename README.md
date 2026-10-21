@@ -27,6 +27,7 @@ set -a; . ./.env; set +a; npm run dev
 - [Identité](docs/identite.md) : OIDC (exemples GitLab, Keycloak, Authentik), jetons de dev, claude.ai Team
 - [Droits](docs/droits.md) : `permissions.yaml`
 - [Ajouter un outil](docs/ajouter-un-outil.md)
+- [Sobriété en tokens](docs/sobriete-tokens.md) : budget des définitions et des résultats
 - [Ajouter une intégration](docs/ajouter-une-integration.md)
 - [Déploiement](docs/deploiement.md) : Docker, HTTPS, variables, sauvegarde
 

@@ -22,7 +22,7 @@ describe('règles de droits', () => {
     expect(grantedPermissions(rules, user)).toEqual(['core:read', 'gitlab:*']);
     const authorize = createAuthorizer(rules);
     expect(authorize(user, 'gitlab:publish')).toBe(true);
-    expect(authorize(user, 'opencloud:read')).toBe(false);
+    expect(authorize(user, 'core:audit')).toBe(false);
   });
 
   it('sans fichier de règles, tout est permis (comportement du POC)', () => {

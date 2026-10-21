@@ -9,7 +9,7 @@ Il répond à trois questions, chacune dans son dossier :
 | Qui peut quoi ? | `src/authorization/` | `permissions.yaml` : personnes et groupes → permissions |
 | Qu'a-t-on fait ? | `src/audit/` | Journal JSON Lines, une ligne par appel, refus compris |
 
-Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core, gitlab, opencloud).
+Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core, gitlab).
 
 ## Les fichiers
 
@@ -24,7 +24,7 @@ src/audit/log.ts          écriture et lecture du journal
 src/tools/types.ts        contrat Tool, ToolGroup, ToolContext
 src/tools/registry.ts     charge les groupes de TOOL_GROUPS
 src/tools/runner.ts       droit -> exécution -> journal
-src/tools/core|gitlab|opencloud/
+src/tools/core|gitlab/
 ```
 
 ## Connexion (mode oauth)
@@ -91,4 +91,3 @@ Le journal ne contient jamais le contenu des fichiers ni un secret : chaque outi
 | Identité figée à la connexion | Pas de jeton IdP à garder | Un changement de groupe côté IdP compte à la reconnexion (30 j max) |
 | Outils visibles même sans droit | Le refus est explicite et journalisé | Claude voit des outils qu'il ne pourra pas appeler |
 | Groupe mal configuré ignoré | Une intégration en panne ne coupe pas les autres | Il faut lire l'avertissement au démarrage |
-| openCloud par son `/mcp` | Un jeton d'API révocable, en lecture | Trois requêtes HTTP par appel (connexion, appel, fermeture) |

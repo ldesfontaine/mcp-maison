@@ -3,12 +3,12 @@
 ## En local
 
 ```bash
-cp .env.example .env          # MCP_TOKENS, GITLAB_*, OPENCLOUD_*
+cp .env.example .env          # MCP_TOKENS, GITLAB_*
 npm install
 set -a; . ./.env; set +a
 npm run dev                   # rechargement auto
 npm run build && npm start    # comme en prod
-npm test                      # sans réseau : faux GitLab, faux IdP, faux openCloud
+npm test                      # sans réseau : faux GitLab, faux IdP
 ```
 
 ## Docker
@@ -63,9 +63,8 @@ Tout est dans `.env.example`, commenté. L'essentiel :
 | `AUTH_MODE` | `tokens` ou `oauth` (`identite.md`) |
 | `MCP_TOKENS` | `id:jeton,…` |
 | `MCP_PUBLIC_URL`, `OAUTH_*` | Mode oauth |
-| `TOOL_GROUPS` | `core,gitlab,opencloud` |
+| `TOOL_GROUPS` | `core,gitlab` |
 | `GITLAB_*` | Groupe gitlab |
-| `OPENCLOUD_URL`, `OPENCLOUD_TOKEN` | Groupe opencloud |
 | `PERMISSIONS_FILE` | Droits (`droits.md`) |
 | `DATABASE_PATH`, `AUDIT_LOG_PATH` | Fichiers de données |
 

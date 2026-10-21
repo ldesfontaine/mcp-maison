@@ -1,8 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
 import express from 'express';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { z } from 'zod';
 
 const randomCode = () => randomBytes(8).toString('hex');
 const pkceMatches = (verifier: string | undefined, challenge: string) =>
@@ -70,27 +67,4 @@ export function fakeOidc(claims: Record<string, unknown>, options: { announcedIs
   });
   app.get('/userinfo', (req, res) => void (isAuthorized(req) ? res.json(claims) : res.status(401).end()));
   return { app };
-}
-
-/** Faux openCloud : son /mcp derrière un Bearer, avec trois outils de lecture. */
-export function fakeOpenCloud(apiToken: string) {
-  const app = express();
-  app.use(express.json());
-  const calls: { name: string; args: unknown }[] = [];
-  const record = (name: string, payload: unknown) => (args: unknown) => {
-    calls.push({ name, args });
-    return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }] };
-  };
-  app.all('/mcp', async (req, res) => {
-    if (req.headers.authorization !== `Bearer ${apiToken}`) return void res.status(401).json({ error: 'invalid_token' });
-    const server = new McpServer({ name: 'openCloud', version: 'test' });
-    server.registerTool('get_overview', { inputSchema: {} }, record('get_overview', { version: 'v0.0.1', counts: { machines: 2 } }));
-    server.registerTool('list_machines', { inputSchema: {} }, record('list_machines', { machines: [{ id: 'm1', name: 'vps-1', online: true }] }));
-    server.registerTool('list_alerts', { inputSchema: { status: z.string().optional() } }, record('list_alerts', { alerts: [], counts: { open: 0 } }));
-    // Sans session (stateless) : un serveur par requête suffit pour un faux.
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
-  });
-  return { app, calls };
 }

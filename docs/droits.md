@@ -42,7 +42,6 @@ groups:                   # par groupe de l'IdP (GitLab : chemin complet)
 | `core:audit` | `audit_recent`, `GET /audit` |
 | `gitlab:read` | `gitlab_list_publications` |
 | `gitlab:publish` | `gitlab_publish` |
-| `opencloud:read` | `opencloud_overview`, `opencloud_list_machines`, `opencloud_list_alerts` |
 
 ## Un refus
 

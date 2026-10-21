@@ -13,7 +13,6 @@ Groupes d'outils fournis, activés par `TOOL_GROUPS` :
 | --- | --- |
 | `core` | `ping`, `whoami`, `audit_recent` |
 | `gitlab` | `gitlab_publish`, `gitlab_list_publications` : maquettes sur demo.example.com via commit + CI |
-| `opencloud` | `opencloud_overview`, `opencloud_list_machines`, `opencloud_list_alerts` (lecture) |
 
 ```bash
 cp .env.example .env && npm install && npm test

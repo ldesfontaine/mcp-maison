@@ -7,12 +7,10 @@ afterEach(() => vi.restoreAllMocks());
 describe('registre des groupes', () => {
   it('ignore un groupe mal configuré ou inconnu, avec un avertissement, sans planter', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const env = { OPENCLOUD_URL: 'https://cloud.example.com', OPENCLOUD_TOKEN: 'oc-token-0123456789', GITLAB_URL: 'pas-une-url' };
-    const loaded = loadToolGroups(['core', 'gitlab', 'opencloud', 'redmine'], env);
+    const env = { GITLAB_URL: 'pas-une-url' };
+    const loaded = loadToolGroups(['core', 'gitlab', 'redmine'], env);
 
-    expect(loaded.tools.map((tool) => tool.name)).toEqual([
-      'ping', 'whoami', 'audit_recent', 'opencloud_overview', 'opencloud_list_machines', 'opencloud_list_alerts'
-    ]);
+    expect(loaded.tools.map((tool) => tool.name)).toEqual(['ping', 'whoami', 'audit_recent']);
     expect(loaded.skipped.map((skip) => skip.group)).toEqual(['gitlab', 'redmine']);
     expect(loaded.skipped[0].reason).toMatch(/GITLAB_URL invalide.*GITLAB_PROJECT_ID manquante.*GITLAB_TOKEN manquante/);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('groupe "gitlab" non chargé'));

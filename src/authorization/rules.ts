@@ -20,7 +20,7 @@ export function parsePermissionRules(yamlText: string, source: string): Permissi
   try {
     document = parse(yamlText) ?? {};
   } catch (error) {
-    throw new Error(`${source} : YAML illisible (${(error as Error).message.split('\n')[0]})`);
+    throw new Error(`${source} : YAML illisible (${(error as Error).message.split('\n')[0]})`, { cause: error });
   }
   const parsed = rulesSchema.safeParse(document);
   if (parsed.success) return parsed.data;

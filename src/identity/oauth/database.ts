@@ -29,6 +29,6 @@ export function openDatabase(path: string): Database.Database {
     db.exec(SCHEMA);
     return db;
   } catch (error) {
-    throw new Error(`base SQLite ${path} inutilisable (DATABASE_PATH) : ${(error as Error).message}`);
+    throw new Error(`base SQLite ${path} inutilisable (DATABASE_PATH) : ${(error as Error).message}`, { cause: error });
   }
 }

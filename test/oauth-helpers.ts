@@ -42,7 +42,7 @@ export async function connectLikeClaude(mcpUrl: string, idpOrigin: string, optio
   const code = toClaude.searchParams.get('code');
   if (!code) throw new Error(`pas de code : ${toClaude.searchParams.get('error_description')}`);
 
-  const secret = client.client_secret ? { client_secret: client.client_secret } : {};
+  const secret: Record<string, string> = client.client_secret ? { client_secret: client.client_secret } : {};
   const exchange = (codeVerifier: string) => fetch(metadata.token_endpoint, form({
     grant_type: 'authorization_code', code, code_verifier: codeVerifier, client_id: client.client_id, redirect_uri: CLAUDE_CALLBACK, ...secret
   }));

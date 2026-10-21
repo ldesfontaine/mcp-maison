@@ -16,7 +16,7 @@ Groupes d'outils fournis, activés par `TOOL_GROUPS` :
 | `gitlab` | `gitlab_publish`, `gitlab_list_publications` : maquettes sur demo.example.com via commit + CI |
 
 ```bash
-cp .env.example .env && npm install && npm test
+cp .env.example .env && npm install && npm run check   # lint + build + tests
 set -a; . ./.env; set +a; npm run dev
 ```
 

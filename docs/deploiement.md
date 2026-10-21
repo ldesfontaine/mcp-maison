@@ -3,12 +3,12 @@
 ## En local
 
 ```bash
-cp .env.example .env          # AUTH_DEV_TOKENS, GITLAB_*
+cp .env.example .env          # AUTH_DEV_TOKENS (jetons de dev), GITLAB_*
 npm install
+npm run check                 # lint + build + tests, sans réseau (faux GitLab, faux IdP)
 set -a; . ./.env; set +a
 npm run dev                   # rechargement auto
 npm run build && npm start    # comme en prod
-npm test                      # sans réseau : faux GitLab, faux IdP
 ```
 
 ## Docker
@@ -58,20 +58,38 @@ Ne pas mettre d'authentification du proxy devant `/mcp`, `/.well-known/…`, `/r
 
 ## Variables
 
-Tout est dans `.env.example`, commenté. L'essentiel :
+Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi que `.env.example`) :
 
-| Variable | Rôle |
-| --- | --- |
-| `MCP_PUBLIC_URL`, `OIDC_*` | Connexion OIDC (`identite.md`) |
-| `AUTH_DEV_TOKENS` | `id:jeton,…`, hors production seulement |
-| `NODE_ENV` | `production` en déploiement (fixé par Docker) |
-| `TOOL_GROUPS` | `core,gitlab` |
-| `GITLAB_*` | Groupe gitlab |
-| `PERMISSIONS_FILE` | Droits (`droits.md`) |
-| `DATABASE_PATH`, `AUDIT_LOG_PATH` | Fichiers de données |
+| Variable | Défaut | Rôle |
+| --- | --- | --- |
+| `NODE_ENV` | | `production` interdit `AUTH_DEV_TOKENS` ; fixé par le Dockerfile et `docker-compose.yml` |
+| `PORT` | 3000 | Port d'écoute |
+| `HOST` | 0.0.0.0 | Adresse d'écoute |
+| `ALLOWED_HOSTS` | | Noms d'hôte acceptés (anti DNS rebinding) |
+| `MAX_BODY` | 10mb | Taille max d'une requête `/mcp` |
+| `TRUST_PROXY` | | Nombre de proxys de confiance devant le serveur |
+| `MCP_PUBLIC_URL` | | URL publique de ce serveur, sans `/mcp` (OIDC) |
+| `OIDC_ISSUER` | | Issuer de l'IdP (`identite.md`) |
+| `OIDC_CLIENT_ID` | | Application déclarée chez l'IdP |
+| `OIDC_CLIENT_SECRET` | | Son secret ; sert aussi à chiffrer le refresh token de l'IdP en base |
+| `OIDC_SCOPES` | openid profile email | Scopes demandés à l'IdP |
+| `OIDC_GROUPS_CLAIM` | groups | Claim de `userinfo` qui porte les groupes |
+| `OIDC_ALLOWED_USERS` | | Qui peut se connecter, par identifiant (vide : tout le monde) |
+| `OIDC_ALLOWED_GROUPS` | | Qui peut se connecter, par groupe |
+| `AUTH_DEV_TOKENS` | | `id:jeton,…`, hors production seulement |
+| `DATABASE_PATH` | ./data/mcp-maison.db | Base SQLite de l'état OAuth |
+| `AUDIT_LOG_PATH` | ./data/audit.jsonl | Journal |
+| `PERMISSIONS_FILE` | ./permissions.yaml s'il existe | Droits (`droits.md`) |
+| `TOOL_GROUPS` | core | Groupes d'outils activés, ex. `core,gitlab` |
+| `GITLAB_URL` | | Groupe gitlab : l'instance |
+| `GITLAB_PROJECT_ID` | | Le dépôt de démo (ID ou chemin) |
+| `GITLAB_TOKEN` | | Token de projet qui pousse (scope api) |
+| `GITLAB_BRANCH` | main | Branche publiée |
+| `GITLAB_PUBLISH_BASE_URL` | | URL où la CI publie `<slug>/` |
 
-Une config du cœur invalide arrête le serveur avec la liste de ce qui manque. Une config de groupe
-incomplète ignore seulement ce groupe.
+Une variable vide compte comme absente. Une config du cœur invalide arrête le serveur avec la liste de
+ce qui ne va pas (noms des variables, jamais leurs valeurs). Une config de groupe incomplète ignore
+seulement ce groupe.
 
 ## Sauvegarde
 

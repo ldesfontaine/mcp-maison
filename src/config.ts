@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseDevTokens } from './identity/dev-tokens.js';
+import type { User } from './identity/user.js';
 
 // Configuration du cœur, validée une fois au démarrage. Chaque groupe d'outils valide la sienne
 // (src/tools/<groupe>/config.ts) : un groupe mal configuré est ignoré, le serveur démarre quand même.
@@ -78,7 +79,7 @@ const schema = coreEnv.superRefine(checkIdentity).transform((env) => ({
   allowedHosts: splitList(env.ALLOWED_HOSTS),
   toolGroups: splitList(env.TOOL_GROUPS),
   oidc: buildOidcSettings(env),
-  devUsers: env.AUTH_DEV_TOKENS ? parseDevTokens(env.AUTH_DEV_TOKENS) : new Map()
+  devUsers: env.AUTH_DEV_TOKENS ? parseDevTokens(env.AUTH_DEV_TOKENS) : new Map<string, User>()
 }));
 
 export type Config = z.infer<typeof schema>;

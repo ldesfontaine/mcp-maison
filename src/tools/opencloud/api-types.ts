@@ -40,7 +40,7 @@ export interface Network {
 
 export interface Service {
   id: string; machine_name: string; name: string; title: string; nature: string; compose_project: string;
-  public_url: string; needs_review: boolean;
+  public_url: string;
   units: { name: string; kind: string; image: string; version: string; container_name: string; systemd_unit: string }[];
 }
 export interface Services { services: Service[] }

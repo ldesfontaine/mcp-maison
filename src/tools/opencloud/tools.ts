@@ -345,7 +345,6 @@ function shapeService(service: Api.Service) {
   return {
     id: service.id, machine: service.machine_name, name: service.name, title: service.title, nature: service.nature,
     compose_project: service.compose_project, public_url: service.public_url,
-    needs_review: service.needs_review || undefined,
     units: service.units.map((unit) => ({
       name: unit.name, kind: unit.kind, image: unit.image, version: unit.version,
       container: unit.container_name, systemd: unit.systemd_unit

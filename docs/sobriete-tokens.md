@@ -23,7 +23,7 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 | description d'un paramètre (`describe()`) | 90 caractères |
 | paramètres | 6 au plus par outil |
 | `tools/list` complet (core + gitlab), en JSON | moins de 3 000 caractères (aujourd'hui 2 802, contre 3 892) |
-| `tools/list` d'un groupe, en JSON | 3 000 caractères au plus (`opencloud` : 11 outils, 2 972) |
+| `tools/list` d'un groupe, en JSON | 3 000 caractères au plus (`opencloud` : 11 outils, 2 992) |
 | résultat | 4 000 caractères par défaut (`maxResultChars`) ; au-delà le runner tronque : `[… tronqué, N caractères sur M]`, journalisé `truncated:true` |
 | erreur d'API amont | 300 caractères, sans HTML ni jeton (`cleanUpstreamError`) |
 

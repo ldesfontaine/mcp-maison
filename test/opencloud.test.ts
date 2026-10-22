@@ -72,7 +72,8 @@ describe('groupe opencloud', () => {
 
   it('chaque appel porte le jeton de service et l\'identité de l\'appelant', async () => {
     expect(await json('opencloud_overview'))
-      .toEqual({ machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } });
+      .toEqual({ version: '0.9.0', machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } });
+    expect(opencloud.requests.slice(-2).map((request) => request.path).sort()).toEqual(['/api/counts', '/api/session']);
     expect(lastRequest()).toMatchObject({ path: '/api/counts', user: 'lucas', name: 'lucas' });
   });
 
@@ -106,6 +107,19 @@ describe('groupe opencloud', () => {
     const { channels } = await json('opencloud_alerts', { channels: true });
     expect(channels).toEqual([{ id: 1, name: 'discord', format: 'discord', url: 'https://discord.com',
       min_severity: 'danger', notify_resolve: true, enabled: true, plain: false }]);
+  });
+
+  it('annuaire, écarts : services en écart nommés, unités conformes omises, non déclarés', async () => {
+    expect(await json('opencloud_directory', { view: 'gaps' })).toEqual({
+      conform: 1,
+      services: [{ service: 'nextcloud', machine: 'hote', state: 'diverged', units: [{ name: 'app', kind: 'container',
+        state: 'diverged', containers: [{ name: 'nextcloud-app', state: 'running', image: 'nextcloud:29',
+          verdict: 'diverged', reason: 'image' }] }] }],
+      undeclared: [{ machine: 'hote', key: 'compose:site', adoptable: true,
+        containers: [{ name: 'web', state: 'exited', image: 'nginx:1.27' }] }]
+    });
+    expect(opencloud.requests.slice(-2).map((request) => request.path).sort())
+      .toEqual(['/api/directory/gaps', '/api/directory/services']);
   });
 
   it('incidents : en cours d\'abord, cibles (kind:nom) avant les composants, qui peuvent manquer', async () => {

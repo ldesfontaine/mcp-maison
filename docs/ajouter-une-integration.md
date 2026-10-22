@@ -137,3 +137,9 @@ Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
 - **Hôte de `OPENCLOUD_URL`** : une IP, `localhost` ou le nom de `public_url` d'openCloud ; tout autre `Host` reçoit
   `403 bad_host` (anti DNS rebinding) ; un nom de conteneur ou `host.docker.internal` ne marchent pas.
   `http://` n'est accepté qu'en boucle locale ou vers une IP privée (10/8, 172.16/12 dont `172.17.0.1`, 192.168/16).
+- **Journal d'openCloud** : l'acteur d'un jeton d'API y apparaît `api` (nommé par l'identifiant du jeton), pas
+  l'appelant de mcp-maison ; quand une écriture par jeton existera, `details.on_behalf_of` portera la valeur de
+  `X-MCP-Maison-User`.
+- Routes lues : celles de `src/tools/opencloud/tools.ts`, dont `/api/session` (la `version` de
+  `opencloud_overview`) et `/api/directory/gaps` (`opencloud_directory`, `view: gaps`). openCloud les rejoue dans
+  `internal/server/api_tokens_contract_test.go` : une route ou un champ lu qui change s'y reporte.

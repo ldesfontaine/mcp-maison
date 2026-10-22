@@ -3,6 +3,7 @@
 
 type Time = string | null;
 
+export interface Session { version: string } // + langue et seuils du front, non lus
 export type Counts = Record<string, unknown>; // rendu tel quel : des compteurs (api_session.go, countsResponse)
 
 export interface Machine {
@@ -44,6 +45,19 @@ export interface Service {
   units: { name: string; kind: string; image: string; version: string; container_name: string; systemd_unit: string }[];
 }
 export interface Services { services: Service[] }
+export interface Gaps { // écart entre l'annuaire et ce que les machines montrent (api_directory_gaps.go)
+  services: {
+    service_id: string; state: string; weak: boolean; // state : conform, absent, diverged, unverifiable, unobserved
+    units: {
+      name: string; kind: string; state: string; weak: boolean;
+      containers: { name: string; state: string; image: string; verdict: string; reason: string }[];
+    }[];
+  }[];
+  undeclared: {
+    machine_name: string; key_kind: string; key_value: string; ignored: boolean; adoptable: boolean;
+    containers: { name: string; state: string; image: string; label_problem: string }[];
+  }[];
+}
 
 export interface Job {
   id: string; name: string; machine_name: string; status: string; interval_seconds: number; grace_seconds: number;

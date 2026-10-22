@@ -170,6 +170,8 @@ export function fakeOpencloud() {
     last_duration_ms: 1200, created_at: at
   };
   const routes: Record<string, unknown> = {
+    '/api/session': { version: '0.9.0', language: 'fr', languages: ['fr', 'en'],
+      certificate_thresholds: { warning: 21, danger: 7 }, disk_thresholds: { attention: 80, danger: 90 } },
     '/api/counts': { machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } },
     '/api/machines': {
       machines: [{ id: 'local', name: 'hote', hostname: 'hote', address: '10.0.0.1', os: 'debian', arch: 'amd64',
@@ -183,7 +185,22 @@ export function fakeOpencloud() {
         new_health: '', exit_code: 137, oom_killed: true, killed: false, replayed: false,
         snippet: 'DB_PASSWORD=fuite-dans-le-journal' }]
     },
-    '/api/directory/services': { services: [] },
+    '/api/directory/services': { services: [{ id: 'svc1', machine_id: 'local', machine_name: 'hote', name: 'nextcloud',
+      title: 'Nextcloud', nature: 'app', compose_project: 'nextcloud', public_url: '', units: [] }] },
+    // Un service en écart (une unité divergente, une conforme), un conforme, un groupe non déclaré.
+    '/api/directory/gaps': {
+      services: [
+        { service_id: 'svc1', state: 'diverged', weak: false, units: [
+          { unit_id: 'u1', name: 'app', kind: 'container', state: 'diverged', weak: false, containers: [
+            { id: 'c9', name: 'nextcloud-app', state: 'running', image: 'nextcloud:29', match_level: 'label',
+              verdict: 'diverged', reason: 'image' }] },
+          { unit_id: 'u2', name: 'db', kind: 'container', state: 'conform', weak: false, containers: [] }] },
+        { service_id: 'svc2', state: 'conform', weak: false, units: [] }
+      ],
+      undeclared: [{ machine_id: 'local', machine_name: 'hote', key_kind: 'compose', key_value: 'site', ignored: false,
+        service_id: '', adoptable: true, containers: [{ id: 'c1', name: 'web', state: 'exited', image: 'nginx:1.27',
+          compose_service: 'web', label_service: '', label_unit: '', label_problem: '' }] }]
+    },
     '/api/jobs/j1': {
       job, ping_url: 'https://oc.example.com/ping/hb_secret-du-ping', url_local: false,
       snippets: [{ key: 'curl', code: 'curl https://oc.example.com/ping/hb_secret-du-ping' }],

@@ -52,7 +52,12 @@ export function createOpencloudTools(config: OpencloudConfig): Tool[] {
       name: 'opencloud_overview',
       description: 'Vue d\'ensemble d\'openCloud : les compteurs.',
       inputSchema: {},
-      run: async (_args, call) => toJson(await getJson<Api.Counts>(call, '/api/counts'))
+      async run(_args, call) {
+        const [session, counts] = await Promise.all([
+          getJson<Api.Session>(call, '/api/session'), getJson<Api.Counts>(call, '/api/counts')
+        ]);
+        return toJson({ version: session.version, ...counts });
+      }
     }),
 
     readTool(config, {
@@ -98,11 +103,17 @@ export function createOpencloudTools(config: OpencloudConfig): Tool[] {
 
     readTool(config, {
       name: 'opencloud_directory',
-      description: 'Annuaire des services déclarés, ou son export YAML.',
-      inputSchema: { view: z.enum(['services', 'export']).default('services') },
+      description: 'Annuaire des services déclarés, leurs écarts ou son export YAML.',
+      inputSchema: { view: z.enum(['services', 'gaps', 'export']).default('services') },
       maxResultChars: 12_000,
       async run({ view }, call) {
         if (view === 'export') return getText(call, '/api/manifest/export');
+        if (view === 'gaps') {
+          const [gaps, { services }] = await Promise.all([
+            getJson<Api.Gaps>(call, '/api/directory/gaps'), getJson<Api.Services>(call, '/api/directory/services')
+          ]);
+          return toJson(shapeGaps(gaps, services));
+        }
         const { services } = await getJson<Api.Services>(call, '/api/directory/services');
         const { total, items } = bounded(services, shapeService);
         return toJson({ total, services: items });
@@ -349,6 +360,31 @@ function shapeService(service: Api.Service) {
       name: unit.name, kind: unit.kind, image: unit.image, version: unit.version,
       container: unit.container_name, systemd: unit.systemd_unit
     }))
+  };
+}
+
+/** Les écarts seulement : services non conformes (nommés), leurs unités en écart ; le reste compté. */
+function shapeGaps(gaps: Api.Gaps, services: Api.Service[]) {
+  const byId = new Map(services.map((service) => [service.id, service]));
+  const differing = gaps.services.filter((gap) => gap.state !== 'conform');
+  const shownServices = bounded(differing, (gap) => ({
+    service: byId.get(gap.service_id)?.name ?? gap.service_id, machine: byId.get(gap.service_id)?.machine_name,
+    state: gap.state, weak: gap.weak || undefined,
+    units: gap.units.filter((unit) => unit.state !== 'conform').map((unit) => ({
+      name: unit.name, kind: unit.kind, state: unit.state, weak: unit.weak || undefined,
+      containers: unit.containers.map(({ name, state, image, verdict, reason }) =>
+        ({ name, state, image, verdict, reason }))
+    }))
+  }));
+  const shownUndeclared = bounded(gaps.undeclared, (group) => ({
+    machine: group.machine_name, key: `${group.key_kind}:${group.key_value}`,
+    ignored: group.ignored || undefined, adoptable: group.adoptable || undefined,
+    containers: group.containers.map(({ name, state, image, label_problem }) => ({ name, state, image, label_problem }))
+  }));
+  return {
+    conform: gaps.services.length - differing.length,
+    total: shownServices.total, services: shownServices.items,
+    undeclared_total: shownUndeclared.total, undeclared: shownUndeclared.items
   };
 }
 

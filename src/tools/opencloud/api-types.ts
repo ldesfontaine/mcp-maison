@@ -77,7 +77,9 @@ export interface Components {
 }
 export interface Incident {
   id: string; title: string; impact: string; status: string; starts_at: Time; ends_at: Time; resolved_at: Time;
-  components: { name: string }[]; updates: { status: string; message: string; created_at: string }[];
+  targets: { kind: string; id: string; name: string }[]; // kind : machine, service, job, probe
+  components: { name: string }[]; // ceux que les cibles touchent ; peut être vide
+  updates: { status: string; message: string; created_at: string }[];
 }
 export interface Incidents { incidents: Incident[] }
 

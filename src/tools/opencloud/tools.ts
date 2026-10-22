@@ -386,7 +386,10 @@ function shapePage(page: Api.StatusPage) {
   return { id, slug, title, announcement, public_url };
 }
 
-/** Les incidents en cours d'abord, 20 au plus, chacun avec sa dernière mise à jour seulement. */
+/**
+ * Les incidents en cours d'abord, 20 au plus, chacun avec sa dernière mise à jour seulement. Ce qu'il vise d'abord
+ * (targets, « service:Nextcloud »), puis les composants de page touchés (souvent aucun).
+ */
 function shapeIncidents(incidents: Api.Incident[]) {
   const sorted = [...incidents].sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved'));
   return {
@@ -395,8 +398,9 @@ function shapeIncidents(incidents: Api.Incident[]) {
       const last = incident.updates.at(-1);
       return {
         id: incident.id, title: incident.title, impact: incident.impact, status: incident.status,
-        starts_at: incident.starts_at, ends_at: incident.ends_at, resolved_at: incident.resolved_at,
+        targets: incident.targets.map((target) => `${target.kind}:${target.name || target.id}`),
         components: incident.components.map((component) => component.name),
+        starts_at: incident.starts_at, ends_at: incident.ends_at, resolved_at: incident.resolved_at,
         last_update: last && { status: last.status, at: last.created_at, message: clip(last.message, 300) }
       };
     })

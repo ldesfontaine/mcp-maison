@@ -108,6 +108,19 @@ describe('groupe opencloud', () => {
       min_severity: 'danger', notify_resolve: true, enabled: true, plain: false }]);
   });
 
+  it('incidents : en cours d\'abord, cibles (kind:nom) avant les composants, qui peuvent manquer', async () => {
+    const { incidents } = await json('opencloud_status', { incidents: true });
+    expect(incidents).toEqual([
+      { id: 'i2', title: 'Panne', impact: 'major', status: 'investigating', targets: ['machine:hote', 'probe:p1'],
+        components: ['Site'], starts_at: '2026-10-21T08:12:33Z' },
+      { id: 'i1', title: 'Nextcloud lent', impact: 'minor', status: 'resolved', targets: ['service:Nextcloud'],
+        starts_at: '2026-10-21T08:12:33Z', resolved_at: '2026-10-21T08:12:33Z',
+        last_update: { status: 'resolved', at: '2026-10-21T08:12:33Z', message: 'Réglé' } }
+    ]);
+    const keys = Object.keys(incidents[0]);
+    expect(keys.indexOf('targets')).toBeLessThan(keys.indexOf('components'));
+  });
+
   it('journal d\'un conteneur : tail transmis, la fin gardée, rien du contenu dans le journal d\'audit', async () => {
     const text = extractText(await call('opencloud_container_logs', { id: 'c1', tail: 500 }));
     expect(lastRequest()).toMatchObject({ path: '/api/containers/c1/logs', query: { tail: '500' } });

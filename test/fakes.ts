@@ -200,7 +200,16 @@ export function fakeOpencloud() {
     }] },
     '/api/status/pages': { pages: [{ id: 's1', project_id: '', slug: 'public', title: 'Statut', announcement: '',
       language: 'fr', public_url: 'https://oc.example.com/statut/public', created_at: at, updated_at: at }] },
-    '/api/status/incidents': { incidents: [] },
+    // targets : ce que l'incident vise ; components : ceux que ces cibles touchent, souvent aucun.
+    '/api/status/incidents': { incidents: [
+      { id: 'i1', title: 'Nextcloud lent', impact: 'minor', status: 'resolved', starts_at: at, ends_at: null,
+        resolved_at: at, targets: [{ kind: 'service', id: 'svc1', name: 'Nextcloud' }], components: [],
+        updates: [{ status: 'resolved', message: 'Réglé', created_at: at }], created_at: at, updated_at: at },
+      { id: 'i2', title: 'Panne', impact: 'major', status: 'investigating', starts_at: at, ends_at: null,
+        resolved_at: null,
+        targets: [{ kind: 'machine', id: 'local', name: 'hote' }, { kind: 'probe', id: 'p1', name: '' }],
+        components: [{ id: 'k1', name: 'Site' }], updates: [], created_at: at, updated_at: at }
+    ] },
     '/api/audit': { events: [], next_before: null },
     '/api/actions': { runs: [] }
   };

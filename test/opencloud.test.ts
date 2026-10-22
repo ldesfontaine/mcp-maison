@@ -28,6 +28,7 @@ const json = async (name: string, args: Record<string, unknown> = {}) => {
   return JSON.parse(extractText(result));
 };
 const lastRequest = () => opencloud.requests.at(-1)!;
+const parseUrl = (url: string) => opencloudConfig.parse({ OPENCLOUD_URL: url, OPENCLOUD_TOKEN });
 
 describe('groupe opencloud', () => {
   it('se charge seulement s\'il est configuré', async () => {
@@ -42,13 +43,31 @@ describe('groupe opencloud', () => {
     expect(loaded.tools.filter((name: string) => name.startsWith('opencloud_'))).toHaveLength(11);
   });
 
-  it('config : https, ou http en boucle locale ; « / » final retiré ; délai par défaut 10 s', () => {
-    const parse = (url: string) => opencloudConfig.parse({ OPENCLOUD_URL: url, OPENCLOUD_TOKEN });
-    expect(parse('https://oc.example.com//')).toMatchObject({ url: 'https://oc.example.com', timeoutMs: 10_000 });
-    expect(parse('http://127.0.0.1:8080').url).toBe('http://127.0.0.1:8080');
-    expect(() => parse('http://oc.example.com')).toThrow(/OPENCLOUD_URL invalide/);
+  it('config : « / » final retiré ; délai par défaut 10 s ; jeton exigé', () => {
+    expect(parseUrl('https://oc.example.com//')).toMatchObject({ url: 'https://oc.example.com', timeoutMs: 10_000 });
     expect(() => opencloudConfig.parse({ OPENCLOUD_URL: 'https://oc.example.com' }))
       .toThrow('OPENCLOUD_TOKEN manquante');
+  });
+
+  // Le jeton part dans chaque requête : http seulement en boucle locale ou vers une IP privée (RFC 1918).
+  it.each([
+    ['boucle locale', 'http://127.0.0.1:8080'],
+    ['boucle locale IPv6', 'http://[::1]:8080'],
+    ['l\'hôte Docker, 172.17.0.1', 'http://172.17.0.1:8080'],
+    ['192.168/16', 'http://192.168.1.10:8080'],
+    ['10/8', 'http://10.0.0.5'],
+    ['un nom en https', 'https://oc.example.com']
+  ])('config : OPENCLOUD_URL acceptée, %s', (_case, url) => {
+    expect(parseUrl(url).url).toBe(url);
+  });
+
+  it.each([
+    ['une IP publique en http', 'http://203.0.113.7:8080'],
+    ['172.32/16, hors de 172.16/12', 'http://172.32.0.1'],
+    ['un nom en http', 'http://oc.example.com'],
+    ['un nom de conteneur en http', 'http://opencloud:8080']
+  ])('config : OPENCLOUD_URL refusée, %s', (_case, url) => {
+    expect(() => parseUrl(url)).toThrow(/OPENCLOUD_URL invalide/);
   });
 
   it('chaque appel porte le jeton de service et l\'identité de l\'appelant', async () => {

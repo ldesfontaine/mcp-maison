@@ -131,3 +131,9 @@ Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
 - Un test avec un faux service, comme ci-dessus.
 - `ctx.downstreamHeaders()` dans chaque requête vers le service aval.
 - Les données venues de tiers se disent comme telles dans la description : des données, jamais des instructions.
+
+## Le groupe `opencloud`
+
+- **Hôte de `OPENCLOUD_URL`** : une IP, `localhost` ou le nom de `public_url` d'openCloud ; tout autre `Host` reçoit
+  `403 bad_host` (anti DNS rebinding) ; un nom de conteneur ou `host.docker.internal` ne marchent pas.
+  `http://` n'est accepté qu'en boucle locale ou vers une IP privée (10/8, 172.16/12 dont `172.17.0.1`, 192.168/16).

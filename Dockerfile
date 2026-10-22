@@ -24,5 +24,6 @@ COPY package.json permissions.example.yaml ./
 RUN mkdir -p /app/data /app/config && chown node:node /app/data
 USER node
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/health || exit 1
+# La sonde suit HOST et PORT (0.0.0.0 : interrogée en boucle locale). wget : celui de busybox, dans l'image alpine.
+HEALTHCHECK --interval=30s --timeout=3s CMD h="${HOST:-127.0.0.1}"; [ "$h" = 0.0.0.0 ] && h=127.0.0.1; wget -qO- "http://$h:${PORT:-3000}/health" || exit 1
 CMD ["node", "dist/main.js"]

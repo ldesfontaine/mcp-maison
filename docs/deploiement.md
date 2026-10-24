@@ -85,7 +85,11 @@ Puis dans `.env` :
 - `MCP_PUBLIC_URL=https://mcp.example.com` : sert aux métadonnées OAuth et au callback OIDC.
 
 Ne pas mettre d'authentification du proxy devant `/mcp`, `/.well-known/…`, `/register`, `/authorize`,
-`/token`, `/revoke`, `/oauth/callback` : Claude doit les atteindre. `/health` peut rester interne.
+`/token`, `/revoke`, `/oauth/callback` : Claude doit les atteindre. Ni devant `/upload/…` : la personne y ouvre le
+lien de dépôt dans son navigateur (le jeton du lien est la seule autorisation). `/health` peut rester interne.
+
+Taille d'un envoi par lien de dépôt : `MAX_BODY`. Si le proxy borne aussi les corps de requête (Nginx
+`client_max_body_size`, 1 Mo par défaut), le régler au moins à cette valeur.
 
 ## Versions publiées
 
@@ -110,7 +114,7 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `PORT` | 3000 | Port d'écoute |
 | `HOST` | 0.0.0.0 | Adresse d'écoute |
 | `ALLOWED_HOSTS` | | Noms d'hôte acceptés (anti DNS rebinding) |
-| `MAX_BODY` | 10mb | Taille max d'une requête `/mcp` |
+| `MAX_BODY` | 10mb | Taille max d'une requête `/mcp`, et d'un envoi par lien de dépôt |
 | `TRUST_PROXY` | | Nombre de proxys de confiance devant le serveur (ex. 1), ou `true` / `false` |
 | `MCP_PUBLIC_URL` | | URL publique de ce serveur, sans `/mcp` (OIDC) |
 | `OIDC_ISSUER` | | Issuer de l'IdP (`identite.md`) |
@@ -122,9 +126,10 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `OIDC_ALLOWED_GROUPS` | | Qui peut se connecter, par groupe |
 | `OAUTH_REDIRECT_ALLOWLIST` | Claude + boucle locale | Adresses de retour acceptées pour les clients DCR (`identite.md`) |
 | `AUTH_DEV_TOKENS` | | `id:jeton,…`, hors production seulement |
-| `DATABASE_PATH` | ./data/mcp-maison.db | Base SQLite de l'état OAuth |
+| `DATABASE_PATH` | ./data/mcp-maison.db | Base SQLite : état OAuth, liens de dépôt |
 | `AUDIT_LOG_PATH` | ./data/audit.jsonl | Journal |
 | `PERMISSIONS_FILE` | ./permissions.yaml s'il existe | Droits (`droits.md`) |
+| `UPLOAD_LINK_TTL_MINUTES` | 15 | Durée de vie d'un lien de dépôt (`gitlab_upload_link`), usage unique |
 | `TOOL_GROUPS` | core | Groupes d'outils activés, ex. `core,gitlab` |
 | `GITLAB_URL` | | Groupe gitlab : l'instance |
 | `GITLAB_PROJECT_ID` | | Le dépôt de publication (ID ou chemin) |
@@ -144,7 +149,7 @@ seulement ce groupe.
 
 | Fichier | Contenu | Si on le perd |
 | --- | --- | --- |
-| `data/mcp-maison.db` (+ `-wal`) | Clients DCR, jetons hachés | Chacun reclique *Connect* dans Claude. Rien d'autre |
+| `data/mcp-maison.db` (+ `-wal`) | Clients DCR, jetons et liens de dépôt hachés | Chacun reclique *Connect* dans Claude ; les liens de dépôt en cours ne marchent plus. Rien d'autre |
 | `data/audit.jsonl` | Qui a fait quoi | L'historique |
 | `.env`, `permissions.yaml` | Config et secrets | À refaire |
 

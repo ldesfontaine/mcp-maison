@@ -64,7 +64,8 @@ mcp.example.com {
 }
 ```
 
-Ne mettre aucune authentification du proxy devant le serveur : Claude doit atteindre `/mcp` et les routes OAuth.
+Ne mettre aucune authentification du proxy devant le serveur : Claude doit atteindre `/mcp` et les routes OAuth,
+et les personnes `/upload/…` (liens de dépôt de fichiers).
 Vérification depuis Internet : `curl -i -X POST https://mcp.example.com/mcp` doit répondre `401`.
 
 ### 6. Brancher Claude
@@ -96,7 +97,7 @@ Le fichier de droits est ensuite relu à chaud.
 | Groupe | Outils |
 | --- | --- |
 | `core` | `ping`, `whoami`, `audit_recent` |
-| `gitlab` | parcourir, lire, modifier et écrire les fichiers d'un dossier d'un dépôt GitLab (`GITLAB_ROOT_DIR`), un commit par écriture ; le déploiement reste celui de la CI du dépôt, hors du MCP |
+| `gitlab` | parcourir, lire, modifier et écrire les fichiers d'un dossier d'un dépôt GitLab (`GITLAB_ROOT_DIR`), un commit par écriture, y compris par un lien de dépôt où la personne glisse ses images et PDF ; le déploiement reste celui de la CI du dépôt, hors du MCP |
 | `opencloud` | lecture de la supervision d'openCloud |
 
 ## Mettre à jour

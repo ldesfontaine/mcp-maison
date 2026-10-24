@@ -18,15 +18,15 @@ const formatEntry = (entry: AuditEntry) => [
 // Le journal « qui a fait quoi », consultable depuis Claude.
 export const auditRecentTool = defineTool({
   name: 'audit_recent',
-  title: 'Journal des actions',
   description:
     'Pour savoir qui a appelé quel outil et quand, refus compris. ' +
     'Renvoie les dernières entrées du journal, la plus récente d\'abord.',
   inputSchema: {
     limit: z.number().int().min(1).max(50).default(10).describe('Nombre d\'entrées'),
-    slug: z.string().regex(SLUG_PATTERN).optional().describe('Filtrer sur un slug'),
-    user: z.string().max(100).optional().describe('Filtrer sur un utilisateur (id ou username)'),
-    tool: z.string().max(100).optional().describe('Filtrer sur un outil')
+    // Filtres : leur nom suffit ; bornes en refine, hors du schéma que Claude paie à chaque conversation.
+    slug: z.string().refine((value) => SLUG_PATTERN.test(value), 'slug invalide').optional(),
+    user: z.string().refine((value) => value.length <= 100).optional().describe('id ou username'),
+    tool: z.string().refine((value) => value.length <= 100).optional()
   },
   permission: 'core:audit',
   annotations: { readOnlyHint: true, openWorldHint: false }, // sans effet, rien hors du serveur

@@ -110,7 +110,7 @@ describe('refus appliqués par le serveur', () => {
     const withBob = { ...rules, users: { ...rules.users, bob: ['gitlab:write'] } };
     rewritePermissions(mcp.permissionsFile, stringify(withBob));
     const bob = JSON.parse(extractText(await callTool(mcp.url, BOB, 'whoami')));
-    expect(bob.allowedTools).toEqual(['ping', 'whoami', 'gitlab_edit', 'gitlab_write']);
+    expect(bob.allowedTools).toEqual(['ping', 'whoami', 'gitlab_edit', 'gitlab_write', 'gitlab_upload_link']);
 
     rewritePermissions(mcp.permissionsFile, 'users: [pas, une, table]');
     const result = await callTool(mcp.url, BOB, 'gitlab_write', publishArgs);

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { fakeGitlab, fakeOidc, IDP_CLIENT } from './fakes.js';
-import { callTool, DEV_TOKENS, listen, oidcEnv, startMcp } from './helpers.js';
+import { callTool, DEV_TOKENS, extractText, listen, oidcEnv, startMcp } from './helpers.js';
 import { connectLikeClaude, obtainTokens } from './oauth-helpers.js';
 
 const claims = {
@@ -116,12 +116,23 @@ describe('serveur d\'autorisation OAuth 2.1 (connexion déléguée à l\'IdP OID
     expect((await fetch(`${mcp.url}/audit`, authorize('pas-un-vrai-token'))).status).toBe(401);
   });
 
-  it('aucun secret dans les logs : jetons émis, secret DCR, secret OIDC, jetons de l\'IdP, token GitLab', async () => {
+  it('aucun secret dans les logs : jetons émis, secret DCR, secret OIDC, jetons de l\'IdP, token GitLab, ' +
+    'jeton de dépôt', async () => {
     const files = [{ path: 'x1/a.html', content: 'x' }];
     await callTool(mcp.url, DEV_TOKENS.lucas, 'gitlab_write', { files });
+    // Lien de dépôt : la page, puis un envoi (loggé : personne et dossier, jamais l'URL).
+    const link = await callTool(mcp.url, DEV_TOKENS.lucas, 'gitlab_upload_link', { path: 'x1' });
+    const { url } = JSON.parse(extractText(link)) as { url: string };
+    expect(url.startsWith(`${mcp.url}/upload/`)).toBe(true); // MCP_PUBLIC_URL, pas localhost
+    await fetch(url);
+    const body = new FormData();
+    body.append('files', new File(['%PDF-1.4'], 'a.pdf'));
+    expect((await fetch(url, { method: 'POST', body })).status).toBe(200);
     const output = logs.join('\n');
     expect(output).toContain('[oauth] connexion de lucas'); // on lit bien les logs
-    const secrets = [...secretsSeen, IDP_CLIENT.secret, 'server-token', DEV_TOKENS.lucas, ...idp.issuedRefreshTokens];
+    const uploadToken = url.split('/').at(-1)!;
+    const secrets = [...secretsSeen, IDP_CLIENT.secret, 'server-token', DEV_TOKENS.lucas, ...idp.issuedRefreshTokens,
+      uploadToken];
     for (const secret of secrets) expect(output).not.toContain(secret);
   });
 });

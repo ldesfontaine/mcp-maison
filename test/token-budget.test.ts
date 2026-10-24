@@ -6,7 +6,7 @@ import { DEV_TOKENS, mcpClient, startMcp } from './helpers.js';
 const BUDGET = {
   description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 3_000, group: 3_000
 };
-const GITLAB_TOOLS = ['gitlab_read', 'gitlab_edit', 'gitlab_write'];
+const GITLAB_TOOLS = ['gitlab_read', 'gitlab_edit', 'gitlab_write', 'gitlab_upload_link'];
 const OPENCLOUD_TOOLS = [
   'opencloud_overview', 'opencloud_machines', 'opencloud_containers', 'opencloud_container_logs',
   'opencloud_directory', 'opencloud_jobs', 'opencloud_probes', 'opencloud_status', 'opencloud_alerts',
@@ -94,6 +94,8 @@ describe('budget de définition des outils', () => {
       gitlab_read: { readOnlyHint: true, openWorldHint: true }, // lit GitLab
       gitlab_edit: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
       gitlab_write: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+      // Crée un lien sur ce serveur ; c'est la personne qui envoie, depuis la page.
+      gitlab_upload_link: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       ...Object.fromEntries(OPENCLOUD_TOOLS.map((name) => [name, local])) // lectures seules d'openCloud
     });
   });

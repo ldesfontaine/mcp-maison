@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { AuditLog } from '../audit/log.js';
 import type { User } from '../identity/user.js';
+import type { UploadLinks } from '../uploads/links.js';
 
 export interface Logger {
   info(message: string, data?: unknown): void;
@@ -43,11 +44,17 @@ export interface Tool<S extends z.ZodRawShape = z.ZodRawShape> {
   handler(args: ArgsOf<S>, ctx: ToolContext): Promise<CallToolResult> | CallToolResult;
 }
 
+/** Ce que le serveur prête aux groupes d'outils, en plus de leurs variables. */
+export interface ToolServices {
+  /** Liens de dépôt à usage unique : un groupe y branche son receveur, ses outils y créent des liens. */
+  uploads: UploadLinks;
+}
+
 /** Un groupe d'outils activable par TOOL_GROUPS. createTools lève une erreur si sa config manque. */
 export interface ToolGroup {
   name: string;
   envKeys: string[]; // les seules variables que createTools recevra
-  createTools(env: Record<string, string>): Tool[];
+  createTools(env: Record<string, string>, services: ToolServices): Tool[];
 }
 
 /** Un résultat est payé une fois puis relu à chaque tour : au-delà, le runner tronque (voir sobriete-tokens.md). */

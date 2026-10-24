@@ -1,7 +1,7 @@
 import { coreGroup } from './core/index.js';
 import { gitlabGroup } from './gitlab/index.js';
 import { opencloudGroup } from './opencloud/index.js';
-import type { Tool, ToolGroup } from './types.js';
+import type { Tool, ToolGroup, ToolServices } from './types.js';
 
 /** Les groupes connus. Ajouter une intégration = un dossier + une ligne ici. */
 export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup, opencloudGroup];
@@ -16,7 +16,9 @@ export interface LoadedTools {
  * un avertissement : une intégration en panne ne doit pas couper les autres. Chaque groupe ne reçoit
  * que ses propres variables (envKeys), jamais les secrets des autres.
  */
-export function loadToolGroups(names: string[], env: Record<string, string>, groups = AVAILABLE_GROUPS): LoadedTools {
+export function loadToolGroups(
+  names: string[], env: Record<string, string>, services: ToolServices, groups = AVAILABLE_GROUPS
+): LoadedTools {
   const loaded: LoadedTools = { tools: [], skipped: [] };
   for (const name of names) {
     const group = groups.find((candidate) => candidate.name === name);
@@ -26,7 +28,7 @@ export function loadToolGroups(names: string[], env: Record<string, string>, gro
     }
     let tools: Tool[];
     try {
-      tools = group.createTools(pickVariables(env, group.envKeys));
+      tools = group.createTools(pickVariables(env, group.envKeys), services);
     } catch (error) {
       skipGroup(loaded, name, `configuration incomplète : ${(error as Error).message}`);
       continue;

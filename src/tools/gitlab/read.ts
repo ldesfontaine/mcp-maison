@@ -49,11 +49,10 @@ export function sliceLines(content: string, from: number) {
 export function createReadTool(config: GitlabConfig) {
   return defineTool({
     name: 'gitlab_read',
-    title: 'Parcourir ou lire',
     description: 'Pour parcourir un dossier publié ou lire un fichier texte. ' +
       'Renvoie sous-dossiers (datés), fichiers et URL, ou des lignes.',
     inputSchema: {
-      path: safeDir.default('').describe('Dossier ("acme", "" = racine) ou fichier ("acme/index.html")'),
+      path: safeDir.default('').describe('Dossier ("acme") ou fichier ("acme/index.html")'),
       offset: z.number().int().min(1).max(1e6).optional().describe('Fichier : ligne de départ (next)'),
       cursor: z.string().refine((value) => value.length <= 400).optional().describe('Dossier : nextCursor précédent')
     },

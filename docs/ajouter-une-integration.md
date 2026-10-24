@@ -94,6 +94,28 @@ X-MCP-Maison-User-Name: <nom affiché : name, sinon username, sinon id>
   n'autorisent rien.
 - Les clients `gitlab` et `opencloud` les envoient ; un nouveau client les met dans **chaque** requête, comme ci-dessus.
 
+## Recevoir des fichiers d'un navigateur
+
+Pour des fichiers que Claude ne peut pas passer en arguments (une image jointe au chat, un gros PDF), un groupe
+branche un **receveur** sur `services.uploads`, reçu en second argument de `createTools(env, services)`. Ses outils
+créent alors des liens de dépôt à usage unique ; la page, l'envoi multipart, le jeton, l'expiration et le journal
+sont communs (`src/uploads/`). Le receveur ne fait que valider et écrire :
+
+```ts
+createTools(env, { uploads }) {
+  const config = meteoConfig.parse(env);
+  uploads.register('meteo', {
+    permission: 'meteo:write', auditTool: 'meteo_upload', extensions: ['png', 'pdf'],
+    describe: (target) => ({ folder: String(target.dir), auditArgs: { path: target.dir } }),
+    async receive(files, link) { /* écrire files au nom de link.user */ return { ok: true, paths, message, args }; }
+  });
+  // un outil appelle uploads.create('meteo', ctx.user, { dir }) et renvoie l'URL
+}
+```
+
+Exemple réel : `src/tools/gitlab/upload-link.ts`. Le jeton n'existe en clair que dans l'URL rendue à Claude : ne
+jamais la noter (`note`) ni la logger.
+
 ## Le test
 
 Un faux service sur un port libre (`listen`), le serveur complet (`startMcp`), un appel comme Claude (`callTool`) :

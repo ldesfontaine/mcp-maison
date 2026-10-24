@@ -1,6 +1,6 @@
 ---
 name: publier
-description: Publie, met à jour ou retrouve des pages HTML sur un espace de publication statique déployé par la CI d'un dépôt GitLab (ex. demo.example.com), via les outils gitlab_read, gitlab_edit et gitlab_write du connecteur mcp-maison. À utiliser quand l'utilisateur demande de « mettre en ligne », « publier », « déployer », « modifier la page en ligne », « retrouver une démo » ou « partager un lien ».
+description: Publie, met à jour ou retrouve des pages HTML sur un espace de publication statique déployé par la CI d'un dépôt GitLab (ex. demo.example.com), via les outils gitlab_read, gitlab_edit, gitlab_write et gitlab_upload_link du connecteur mcp-maison. À utiliser quand l'utilisateur demande de « mettre en ligne », « publier », « déployer », « modifier la page en ligne », « ajouter une image, un logo ou un PDF », « retrouver une démo » ou « partager un lien ».
 ---
 
 # Publier sur l'espace de publication
@@ -14,6 +14,7 @@ qui est connecté : le commit et le journal sont à son nom, rien à préciser d
 | `gitlab_read` | parcourir un dossier (`path: ""` = la racine, `"acme"`) ou lire un fichier texte (`"acme/index.html"`) |
 | `gitlab_edit` | changer quelques passages d'un fichier en ligne, sans le renvoyer en entier |
 | `gitlab_write` | créer une publication, ajouter des fichiers, remplacer un fichier entier |
+| `gitlab_upload_link` | faire déposer par l'utilisateur ses propres fichiers (images, PDF, polices) dans un dossier |
 
 Rien ne se supprime avec ces outils : un fichier retiré d'une page reste en ligne.
 
@@ -28,7 +29,8 @@ Rien ne se supprime avec ces outils : un fichier retiré d'une page reste en lig
   caractères, `^[a-z0-9-]+$`. Ex. « Page produit — v2 » → `page-produit-v2/`. Un nom donné par l'utilisateur : le
   normaliser de même.
 - **Fichiers** : `<dossier>/index.html` autonome (CSS/JS inline ou fichiers voisins, chemins **relatifs** seulement,
-  ex. `assets/logo.png`). Binaires en base64 avec `encoding: "base64"`. Extensions acceptées : html css js mjs json svg
+  ex. `assets/logo.png`). Binaires produits par du code : base64 avec `encoding: "base64"` ; fichiers de
+  l'utilisateur : voir « Ajouter des images ou des PDF ». Extensions acceptées : html css js mjs json svg
   png jpg jpeg gif webp ico woff woff2 ttf txt pdf map xml webmanifest. Aucun fichier ni dossier commençant par un
   point (`.htaccess`, `.env`…).
 
@@ -40,6 +42,27 @@ Rien ne se supprime avec ces outils : un fichier retiré d'une page reste en lig
    figurer qu'une fois. Plusieurs remplacements d'un même fichier dans **un seul** appel.
 3. Réécrire tout le fichier (`gitlab_write` avec `overwrite: true`) seulement si presque tout change, et après
    accord de l'utilisateur.
+
+## Ajouter des images ou des PDF de l'utilisateur
+
+Une image ou un PDF joint au chat n'est pas transmissible : Claude le voit mais n'en a pas les octets. Et un binaire en
+base64 coûte très cher. Dès que l'utilisateur veut ajouter **ses** fichiers (« ajoute le logo du client », « mets la
+photo de l'usine », « joins la plaquette »), ne pas essayer de les recopier : faire déposer par lien.
+
+1. Appeler `gitlab_upload_link` avec le dossier cible, ex. `{ "path": "acme/assets" }`, sans `overwrite`. Pas de
+   question préalable : la demande vaut accord, et l'utilisateur choisit lui-même ses fichiers sur la page.
+2. Donner le lien en une phrase : où iront les fichiers, qu'il sert **une fois**, et jusqu'à quelle heure
+   (`expiresAt`, à dire en heure locale). Demander de revenir dire « c'est envoyé ».
+3. Au retour : `gitlab_read` sur le dossier pour voir les noms réels (normalisés : minuscules, sans accents ni
+   espaces, ex. « Logo Client.PNG » devient `logo-client.png`), puis `gitlab_edit` pour les intégrer à la page avec
+   des chemins **relatifs** (`assets/logo-client.png` depuis `acme/index.html`).
+
+- La page refuse elle-même ce qui ne passe pas (extension, fichier caché, contenu qui ne correspond pas à
+  l'extension, trop lourd) et le dit à la personne : rien à vérifier avant.
+- **Fichier déjà présent** : la page le signale. Pour le remplacer, demander l'accord, puis un nouveau lien avec
+  `overwrite: true`. Jamais `overwrite` de sa propre initiative.
+- **Lien expiré ou déjà utilisé** : en créer un nouveau, sans autre question.
+- Un logo ou une image que Claude crée lui-même (SVG en texte, par exemple) passe par `gitlab_write`, pas par un lien.
 
 ## Réponses
 

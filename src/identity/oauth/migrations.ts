@@ -1,6 +1,6 @@
 // Migrations du schéma SQLite, numérotées et jouées une seule fois, dans l'ordre (database.ts).
 // Ne jamais modifier une migration publiée : en ajouter une nouvelle à la fin.
-// Ce qui est stocké en clair ou non : codes, jetons et secrets de client sont hachés (SHA-256) ;
+// Ce qui est stocké en clair ou non : codes, jetons, secrets de client et jetons de dépôt sont hachés (SHA-256) ;
 // restent lisibles le verifier PKCE envoyé à l'IdP (10 min au plus) et idp_refresh, chiffré par le serveur.
 export interface Migration {
   version: number;
@@ -50,5 +50,14 @@ DELETE FROM oauth_codes;`
     name: 'scopes demandés à /authorize, gardés jusqu\'aux jetons',
     sql: `
 ALTER TABLE oauth_codes ADD COLUMN scopes TEXT NOT NULL DEFAULT '';`
+  },
+  {
+    version: 5,
+    name: 'liens de dépôt de fichiers, à usage unique',
+    // claimed_at : un envoi en cours (deux envois simultanés ne commitent pas deux fois).
+    sql: `
+CREATE TABLE upload_links (
+  token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, user TEXT NOT NULL, target TEXT NOT NULL,
+  expires_at INTEGER NOT NULL, claimed_at INTEGER);`
   }
 ];

@@ -10,6 +10,8 @@ import { mountOAuth } from './identity/oauth/routes.js';
 import { createMcpSessions } from './mcp-sessions.js';
 import { loadToolGroups } from './tools/registry.js';
 import { buildMcpServer } from './tools/runner.js';
+import { UploadLinks } from './uploads/links.js';
+import { mountUploads } from './uploads/routes.js';
 import { VERSION } from './version.js';
 
 /** Les moyens d'identification actifs, pour /health et le message de démarrage. */
@@ -25,7 +27,12 @@ export function describeIdentity(config: Config): string[] {
 export function createApp(rawEnv: NodeJS.ProcessEnv) {
   const env = dropEmptyValues(rawEnv);
   const config = parseConfig(env);
-  const { tools, skipped } = loadToolGroups(config.toolGroups, env);
+  // Hors production (jetons de dev, pas de MCP_PUBLIC_URL), un lien de dépôt pointe vers le poste local.
+  const uploads = new UploadLinks({
+    databasePath: config.DATABASE_PATH, publicUrl: config.oidc?.publicUrl ?? `http://localhost:${config.PORT}`,
+    ttlSeconds: config.UPLOAD_LINK_TTL_MINUTES * 60
+  });
+  const { tools, skipped } = loadToolGroups(config.toolGroups, env, { uploads });
   const authorizer = loadAuthorizer(config.PERMISSIONS_FILE);
   const audit = new AuditLog(config.AUDIT_LOG_PATH);
   const mcp = createMcpSessions(() => buildMcpServer({ tools, audit, authorizer }));
@@ -54,11 +61,20 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   // Auth AVANT la lecture du corps : un anonyme ne fait pas parser 10 Mo.
   const allowedOrigins = config.oidc ? [new URL(config.oidc.publicUrl).origin] : [];
   app.use('/mcp', rejectForeignOrigin(allowedOrigins), bearer, express.json({ limit: config.MAX_BODY }), mcp.router);
+  // Seulement si un groupe chargé reçoit des fichiers (gitlab) : sinon, ni route, ni base ouverte pour rien.
+  const closeUploads = uploads.hasReceivers
+    ? mountUploads(app, {
+      links: uploads, audit, authorizer, maxBody: config.MAX_BODY, allowedOrigin: allowedOrigins[0]
+    })
+    : undefined;
   app.use(sendJsonRpcError);
 
   // Deux temps pour l'arrêt (main.ts) : les sessions d'abord, la base une fois les requêtes terminées.
   const closeSessions = () => mcp.closeAll();
-  const closeStorage = () => oauth?.close();
+  const closeStorage = () => {
+    closeUploads?.();
+    oauth?.close();
+  };
   const close = async () => {
     await closeSessions();
     closeStorage();

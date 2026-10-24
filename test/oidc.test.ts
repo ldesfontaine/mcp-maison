@@ -28,7 +28,9 @@ describe('identité OIDC (découverte .well-known, userinfo)', () => {
     expect(me).toMatchObject({
       id: 'f3a1', username: 'marie', name: 'Marie C.', provider: 'oidc', groups: ['integrateurs']
     });
-    expect(me.allowedTools).toEqual(['ping', 'whoami', 'gitlab_read', 'gitlab_edit', 'gitlab_write']);
+    expect(me.allowedTools).toEqual([
+      'ping', 'whoami', 'gitlab_read', 'gitlab_edit', 'gitlab_write', 'gitlab_upload_link'
+    ]);
   });
 
   it('OIDC_ALLOWED_GROUPS : un compte hors des groupes autorisés repart vers Claude avec access_denied', async () => {

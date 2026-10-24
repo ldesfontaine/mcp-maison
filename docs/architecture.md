@@ -15,7 +15,7 @@ Les outils vivent dans `src/tools/<groupe>/`. Un groupe = une intégration (core
 
 ```
 src/main.ts                    le processus : createApp, écoute, arrêt propre, erreurs de démarrage
-src/app.ts                     l'assemblage : config, outils, droits, journal, routes /health /audit /mcp
+src/app.ts                     l'assemblage : config, outils, droits, journal, routes /health /audit /mcp /upload
 src/config.ts                  variables du cœur, validées (zod)
 src/mcp-sessions.ts            sessions MCP, liées à leur personne ; 500 au plus, 20 par personne (la plus ancienne cède)
 src/identity/
@@ -39,12 +39,18 @@ src/authorization/
   permissions-file.ts          l'Authorizer qui lit (et relit) permissions.yaml
 src/audit/log.ts, routes.ts    le journal, et GET /audit
 src/version.ts                 VERSION, écrit depuis package.json au build (scripts/version.mjs) ; /health
-src/tools/types.ts             contrat Tool, ToolGroup, ToolContext, defineGroupConfig
+src/uploads/
+  links.ts                     liens de dépôt à usage unique (jeton haché en SQLite) et receveurs des groupes
+  routes.ts                    GET /upload/:jeton (la page), POST (multipart, parseur de Node) -> receveur -> journal
+  page.ts                      la page de dépôt : autonome, CSP stricte (empreintes du style et du script)
+  file-types.ts                nom normalisé, type réel (signature des images, PDF, polices)
+src/tools/types.ts             contrat Tool, ToolGroup, ToolContext, ToolServices, defineGroupConfig
 src/tools/registry.ts          charge les groupes de TOOL_GROUPS
 src/tools/runner.ts            droit -> exécution -> journal
 src/tools/downstream.ts        en-têtes d'identité vers un service aval (X-MCP-Maison-User)
 src/tools/slug.ts              SLUG_PATTERN, la seule définition d'un slug
 src/tools/gitlab/files.ts      chemins et extensions acceptés (jamais de fichier caché, jamais hors de GITLAB_ROOT_DIR)
+src/tools/gitlab/upload-link.ts  gitlab_upload_link et le receveur des fichiers déposés (un commit, mêmes règles)
 src/tools/opencloud/           client REST d'openCloud (jeton, délai, Retry-After) et ses lectures filtrées
 src/tools/core|gitlab|opencloud/
 ```

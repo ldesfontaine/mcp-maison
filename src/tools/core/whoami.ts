@@ -12,7 +12,7 @@ export const whoamiTool = defineTool({
   title: 'Qui suis-je',
   description:
     'Pour vérifier la connexion ou comprendre un refus de droits. ' +
-    'Renvoie l\'identité vue par le serveur et les outils permis.',
+    'Renvoie l\'identité et les outils permis.',
   inputSchema: {},
   permission: 'core:whoami',
   annotations: { readOnlyHint: true, openWorldHint: false }, // sans effet, rien hors du serveur

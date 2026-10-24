@@ -9,9 +9,8 @@ import { isTextFile, safePath, topSlug } from './files.js';
 export function createEditTool(config: GitlabConfig) {
   return defineTool({
     name: 'gitlab_edit',
-    title: 'Modifier un fichier',
     description: 'Pour modifier un fichier texte publié sans le renvoyer : ' +
-      'chaque old (unique dans le fichier) devient new. Renvoie l\'URL.',
+      'chaque old (unique) devient new. Renvoie l\'URL.',
     inputSchema: {
       path: safePath, // comme dans gitlab_read : sans describe, une définition de moins à payer
       edits: z.array(z.object({ old: z.string().refine((text) => text.length > 0, 'old vide'), new: z.string() }))

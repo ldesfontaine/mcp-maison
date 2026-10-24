@@ -9,9 +9,8 @@ import { safePath, topSlug } from './files.js';
 export function createWriteTool(config: GitlabConfig) {
   return defineTool({
     name: 'gitlab_write',
-    title: 'Publier des fichiers',
     // Payée à chaque conversation : la méthode (quand confirmer, que faire d'un refus) vit dans skills/publier.
-    description: 'Pour publier des fichiers (page HTML, assets) en un commit déployé par la CI. ' +
+    description: 'Pour publier des fichiers en un commit déployé par la CI. ' +
       'Renvoie l\'URL, ou un refus si un fichier existe.',
     inputSchema: {
       files: z
@@ -21,7 +20,7 @@ export function createWriteTool(config: GitlabConfig) {
           encoding: z.enum(['text', 'base64']).optional()
         }))
         .refine((files) => files.length >= 1 && files.length <= 100, '1 à 100 fichiers'),
-      overwrite: z.boolean().default(false).describe('Remplace l\'existant, sur accord de l\'utilisateur')
+      overwrite: z.boolean().default(false).describe('Sur accord de l\'utilisateur')
     },
     permission: 'gitlab:write',
     // overwrite remplace des fichiers publiés ; chaque appel accepté fait un commit et un déploiement.

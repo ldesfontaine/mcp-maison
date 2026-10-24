@@ -44,6 +44,9 @@ const coreEnv = z.object({
   AUDIT_LOG_PATH: z.string().default('./data/audit.jsonl'),
   PERMISSIONS_FILE: z.string().optional(), // absent : ./permissions.yaml s'il existe, sinon droits minimaux
 
+  // --- Liens de dépôt de fichiers (src/uploads) ---
+  UPLOAD_LINK_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+
   // --- Outils ---
   TOOL_GROUPS: z.string().default('core')
 });

@@ -22,7 +22,7 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 | `title` | 40 caractères |
 | description d'un paramètre (`describe()`) | 90 caractères |
 | paramètres | 6 au plus par outil |
-| `tools/list` complet (core + gitlab), en JSON | moins de 3 000 caractères (aujourd'hui 2 978 avec 4 outils gitlab ; 2 994 avec 3 ; 2 802 avec 2, contre 3 892 au départ) |
+| `tools/list` complet (core + gitlab), en JSON | moins de 4 000 caractères, **temporairement** (3 000 jusqu'à #5) : le temps de la veille sur le chargement à la demande, [issue #6](https://github.com/ldesfontaine/mcp-maison/issues/6). Aujourd'hui 2 978 avec 4 outils gitlab ; 2 994 avec 3 ; 2 802 avec 2, contre 3 892 au départ |
 | `tools/list` d'un groupe, en JSON | 3 000 caractères au plus (`opencloud` : 11 outils, 2 992) |
 | résultat | 4 000 caractères par défaut (`maxResultChars`) ; au-delà le runner tronque : `[… tronqué, N caractères sur M]`, journalisé `truncated:true` |
 | erreur d'API amont | 300 caractères, sans HTML ni jeton (`cleanUpstreamError`) |

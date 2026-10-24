@@ -13,7 +13,7 @@ users:               # par sub OIDC (voir whoami) ou username, ou id de AUTH_DEV
 
 groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/dev")
   exemple/dev:
-    - gitlab:*       # gitlab_publish, gitlab_list_publications
+    - gitlab:*       # gitlab_read, gitlab_edit, gitlab_write
   exemple/lecture:
     - gitlab:read
     - core:audit     # audit_recent et GET /audit

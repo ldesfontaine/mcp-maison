@@ -1,108 +1,114 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { listPublishedSlugs, publishFiles, SlugTakenError } from '../src/tools/gitlab/api.js';
+import {
+  buildPublicUrl, commonDir, ConflictError, editFile, FilesExistError, writeFiles
+} from '../src/tools/gitlab/api.js';
 import { gitlabConfig } from '../src/tools/gitlab/config.js';
 
-const config = gitlabConfig.parse({
+const env = {
   GITLAB_URL: 'https://gitlab.example.com/', GITLAB_PROJECT_ID: 'web/demo', GITLAB_TOKEN: 'glpat-test',
-  GITLAB_PUBLISH_BASE_URL: 'https://demo.example.com'
-});
+  GITLAB_PUBLISH_BASE_URL: 'https://demo.example.com', GITLAB_ROOT_DIR: '/src/'
+};
+const config = gitlabConfig.parse(env);
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const base64 = (text: string) => Buffer.from(text).toString('base64');
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('API GitLab', () => {
-  it('envoie create/update selon les fichiers existants, en un seul commit', async () => {
+  it('GITLAB_ROOT_DIR : "/" en bord retirés ; vide = tout le dépôt ; ".." et segment caché refusés', () => {
+    expect(config.rootDir).toBe('src');
+    const { GITLAB_ROOT_DIR: _unused, ...withoutRoot } = env;
+    expect(gitlabConfig.parse(withoutRoot).rootDir).toBe('');
+    for (const bad of ['../x', 'src/../..', '.git', 'a/.b', 'a b']) {
+      expect(() => gitlabConfig.parse({ ...env, GITLAB_ROOT_DIR: bad }), bad).toThrow(/GITLAB_ROOT_DIR invalide/);
+    }
+  });
+
+  it('URL publique et dossier commun', () => {
+    expect(buildPublicUrl(config, 'acme/index.html')).toBe('https://demo.example.com/acme/');
+    expect(buildPublicUrl(config, 'index.html')).toBe('https://demo.example.com/');
+    expect(buildPublicUrl(config, 'acme/v2.html')).toBe('https://demo.example.com/acme/v2.html');
+    expect(buildPublicUrl(config, '', true)).toBe('https://demo.example.com/');
+    expect(commonDir(['a/b/c.html', 'a/b/d/e.css'])).toBe('a/b');
+    expect(commonDir(['a/x.html', 'b/y.html'])).toBe('');
+    expect(commonDir(['index.html'])).toBe('');
+  });
+
+  it('write : liste le dossier commun, create/update selon l\'existant, un seul commit', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json([
-        { path: 'acme/index.html', name: 'index.html', type: 'blob' },
-        { path: 'acme/assets', name: 'assets', type: 'tree' }
-      ]))
+      .mockResolvedValueOnce(json([{ path: 'src/acme/index.html', name: 'index.html', type: 'blob' }]))
       .mockResolvedValueOnce(json({ id: 'abc123', web_url: 'https://gitlab.example.com/commit/abc123' }, 201));
     vi.stubGlobal('fetch', fetchMock);
-
-    const result = await publishFiles(config, 'acme', [
-      { path: 'index.html', content: '<h1>v2</h1>' },
-      { path: 'assets/app.css', content: 'body{}' }
+    const result = await writeFiles(config, [
+      { path: 'acme/index.html', content: '<h1>v2</h1>' }, { path: 'acme/assets/app.css', content: 'body{}' }
     ], { message: 'maj démo', overwrite: true });
 
     const [treeUrl, treeInit] = fetchMock.mock.calls[0];
     expect(treeUrl).toContain('https://gitlab.example.com/api/v4/projects/web%2Fdemo/repository/tree?');
-    expect(treeUrl).toContain('path=acme');
+    expect(treeUrl).toContain('path=src%2Facme');
     expect(treeUrl).toContain('recursive=true');
     expect(treeInit.headers['PRIVATE-TOKEN']).toBe('glpat-test');
-
-    const [commitUrl, commitInit] = fetchMock.mock.calls[1];
-    expect(commitUrl).toBe('https://gitlab.example.com/api/v4/projects/web%2Fdemo/repository/commits');
-    expect(JSON.parse(commitInit.body)).toEqual({
-      branch: 'main',
-      commit_message: 'maj démo',
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      branch: 'main', commit_message: 'maj démo',
       actions: [
-        { action: 'update', file_path: 'acme/index.html', content: '<h1>v2</h1>', encoding: 'text' },
-        { action: 'create', file_path: 'acme/assets/app.css', content: 'body{}', encoding: 'text' }
+        { action: 'update', file_path: 'src/acme/index.html', content: '<h1>v2</h1>', encoding: 'text' },
+        { action: 'create', file_path: 'src/acme/assets/app.css', content: 'body{}', encoding: 'text' }
       ]
     });
-    expect(result.publicUrl).toBe('https://demo.example.com/acme/');
+    expect(result).toMatchObject({ url: 'https://demo.example.com/acme/', created: ['acme/assets/app.css'],
+      updated: ['acme/index.html'] });
   });
 
-  it('dossier absent (404) => tout en create, message par défaut', async () => {
+  it('write sans overwrite sur un fichier existant : FilesExistError, aucun commit envoyé', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response('{"message":"404 Tree Not Found"}', { status: 404 }))
-      .mockResolvedValueOnce(json({ id: 'def', web_url: 'u' }, 201));
+      .mockResolvedValueOnce(json([{ path: 'src/acme/index.html', name: 'index.html', type: 'blob' }]))
+      .mockResolvedValueOnce(json([{ author_name: 'Marie C.', committed_date: '2026-10-19T08:00:00Z', web_url: 'u' }]));
     vi.stubGlobal('fetch', fetchMock);
-    const result = await publishFiles(config, 'nouveau', [{ path: 'index.html', content: 'x' }]);
-    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(body.commit_message).toMatch(/^publish\(nouveau\)/);
-    expect(result.created).toEqual(['nouveau/index.html']);
+    const attempt = writeFiles(config, [{ path: 'acme/index.html', content: 'x' }]);
+    await expect(attempt).rejects.toBeInstanceOf(FilesExistError);
+    await expect(attempt).rejects.toMatchObject({ paths: ['acme/index.html'], lastCommit: { authorName: 'Marie C.' } });
+    expect(fetchMock.mock.calls[1][0]).toContain('/repository/commits?path=src%2Facme%2Findex.html&ref_name=main');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('auteur sans e-mail : "(via id)" dans le message, pas de author_name/author_email', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(new Response('{"message":"404 Tree Not Found"}', { status: 404 }))
       .mockResolvedValueOnce(json({ id: 'a1', web_url: 'u' }, 201));
     vi.stubGlobal('fetch', fetchMock);
-    const author = { id: 'bob', name: 'bob' };
-    await publishFiles(config, 'x2', [{ path: 'a.html', content: '' }], { message: 'v1', author });
+    await writeFiles(config, [{ path: 'x2/a.html', content: '' }], { author: { id: 'bob', name: 'bob' } });
     const body = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(body.commit_message).toBe('v1 (via bob)');
+    expect(body.commit_message).toBe('write(x2): 1 fichier(s) (via bob)');
     expect(body).not.toHaveProperty('author_email');
   });
 
-  it('slug déjà publié sans overwrite : SlugTakenError avec le dernier commit, aucun commit envoyé', async () => {
+  it('edit : lit le fichier (chemin encodé), commite avec last_commit_id ; GitLab refuse s\'il a changé', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json([{ path: 'acme/index.html', name: 'index.html', type: 'blob' }]))
-      .mockResolvedValueOnce(json([{ author_name: 'Marie C.', committed_date: '2026-10-19T08:00:00Z', web_url: 'u' }]));
+      .mockResolvedValueOnce(json({ content: base64('<h1>a</h1>'), last_commit_id: 'v1' }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        message: 'You are attempting to update a file that has changed since you started editing it.'
+      }), { status: 400 }));
     vi.stubGlobal('fetch', fetchMock);
-    const attempt = publishFiles(config, 'acme', [{ path: 'index.html', content: 'x' }]);
-    await expect(attempt).rejects.toBeInstanceOf(SlugTakenError);
-    await expect(attempt).rejects.toMatchObject({ lastCommit: { authorName: 'Marie C.' } });
-    expect(fetchMock.mock.calls[1][0]).toContain('/repository/commits?path=acme&ref_name=main&per_page=1');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const attempt = editFile(config, 'acme/index.html', [{ old: 'a', new: 'b' }]);
+    await expect(attempt).rejects.toBeInstanceOf(ConflictError);
+    expect(fetchMock.mock.calls[0][0])
+      .toBe('https://gitlab.example.com/api/v4/projects/web%2Fdemo/repository/files/src%2Facme%2Findex.html?ref=main');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).actions).toEqual([{
+      action: 'update', file_path: 'src/acme/index.html', content: '<h1>b</h1>', encoding: 'text', last_commit_id: 'v1'
+    }]);
   });
 
   it('remonte une erreur GitLab lisible : le message seul, sans HTML ni jeton', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(new Response('{"message":"403 Forbidden"}', { status: 403 })));
-    await expect(publishFiles(config, 'x1', [{ path: 'a.html', content: '' }]))
+    await expect(writeFiles(config, [{ path: 'x1/a.html', content: '' }]))
       .rejects.toThrow(/^GitLab commit 403: 403 Forbidden$/);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(
       new Response('<html><body><p>jeton glpat-test refusé</p></body></html>', { status: 500 })));
-    await expect(listPublishedSlugs(config)).rejects.toThrow(/^GitLab tree 500: jeton \[jeton\] refusé$/);
-  });
-
-  it('liste les publications : dossiers racine au nom de slug, sur deux pages', async () => {
-    const page2 = 'https://gitlab.example.com/api/v4/projects/web%2Fdemo/repository/tree?page_token=x';
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify([
-        { path: 'acme', name: 'acme', type: 'tree' }, { path: '.gitlab', name: '.gitlab', type: 'tree' },
-        { path: 'README.md', name: 'README.md', type: 'blob' }
-      ]), { status: 200, headers: { link: `<${page2}>; rel="next"` } }))
-      .mockResolvedValueOnce(json([{ path: 'beta-2026', name: 'beta-2026', type: 'tree' }]));
-    vi.stubGlobal('fetch', fetchMock);
-    expect(await listPublishedSlugs(config)).toEqual(['acme', 'beta-2026']);
-    expect(fetchMock.mock.calls[0][0]).toContain('recursive=false');
-    expect(fetchMock.mock.calls[1][0]).toContain('/repository/tree?page_token=x');
+    await expect(editFile(config, 'a.html', [{ old: 'a', new: 'b' }]))
+      .rejects.toThrow(/^GitLab file 500: jeton \[jeton\] refusé$/);
   });
 });

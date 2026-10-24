@@ -1,14 +1,16 @@
 import type { ToolGroup } from '../types.js';
 import { gitlabConfig } from './config.js';
-import { createListPublicationsTool } from './list-publications.js';
-import { createPublishTool } from './publish.js';
+import { createEditTool } from './edit.js';
+import { createReadTool } from './read.js';
+import { createWriteTool } from './write.js';
 
-// Publication de fichiers dans un dépôt GitLab, déployé par sa propre CI (ex. demo.example.com).
+// Un dossier d'un dépôt GitLab (GITLAB_ROOT_DIR), publié par la CI du dépôt (ex. demo.example.com) :
+// le parcourir, lire, modifier et y écrire des fichiers. Jamais de suppression, jamais hors du dossier.
 export const gitlabGroup: ToolGroup = {
   name: 'gitlab',
   envKeys: gitlabConfig.envKeys,
   createTools(env) {
     const config = gitlabConfig.parse(env);
-    return [createPublishTool(config), createListPublicationsTool(config)];
+    return [createReadTool(config), createEditTool(config), createWriteTool(config)];
   }
 };

@@ -84,14 +84,16 @@ export function fakeOidc(claims: Record<string, unknown>, options: FakeOidcOptio
 }
 
 /**
- * Faux GitLab, côté API seulement (groupe d'outils gitlab) : un dépôt en mémoire. tree liste les fichiers
- * d'un dossier (404 s'il n'existe pas) ou les dossiers de la racine, commits enregistre les actions et répond
- * à « dernier commit sur un chemin ». `identities` garde les en-têtes d'identité reçus, requête par requête.
+ * Faux GitLab, côté API seulement (groupe d'outils gitlab) : un dépôt en mémoire, `files` (chemin -> contenu et
+ * dernier commit). tree liste un dossier (404 s'il n'existe pas), récursif ou non ; files/:chemin renvoie un fichier
+ * en base64 ; commits enregistre les actions (400 si un "update" porte un last_commit_id périmé) et répond à
+ * « dernier commit sur un chemin ». `identities` garde les en-têtes d'identité reçus, requête par requête.
  */
 export function fakeGitlab() {
   const app = express();
   const commits: Record<string, any>[] = [];
-  const files = new Set<string>();
+  const files = new Map<string, { content: string; lastCommitId: string }>();
+  const put = (path: string, content = 'x', lastCommitId = 'seed') => files.set(path, { content, lastCommitId });
   const identities: { user?: string; name?: string }[] = []; // en-têtes X-MCP-Maison-* de chaque requête
   app.use((req, _res, next) => {
     identities.push({ user: req.get('x-mcp-maison-user'), name: req.get('x-mcp-maison-user-name') });
@@ -100,18 +102,32 @@ export function fakeGitlab() {
   app.use(express.json({ limit: '20mb' }));
   app.get('/api/v4/projects/:id/repository/tree', (req, res) => {
     const dir = String(req.query.path ?? '');
-    if (!dir) { // racine, non récursif : les dossiers de premier niveau
-      const names = [...new Set([...files].map((path) => path.split('/')[0]))].sort();
-      return void res.json(names.map((name) => ({ path: name, name, type: 'tree' })));
+    const prefix = dir ? `${dir}/` : '';
+    const inside = [...files.keys()].filter((path) => path.startsWith(prefix)).sort();
+    if (dir && !inside.length) return void res.status(404).json({ message: '404 Tree Not Found' });
+    if (req.query.recursive === 'true') {
+      return void res.json(inside.map((path) => ({ path, name: path.split('/').at(-1), type: 'blob' })));
     }
-    const inside = [...files].filter((path) => path.startsWith(`${dir}/`));
-    if (!inside.length) return void res.status(404).json({ message: '404 Tree Not Found' });
-    res.json(inside.map((path) => ({ path, name: path.split('/').at(-1), type: 'blob' })));
+    const children = new Map<string, 'blob' | 'tree'>();
+    for (const path of inside) {
+      const [name, ...rest] = path.slice(prefix.length).split('/');
+      children.set(name, rest.length ? 'tree' : 'blob');
+    }
+    res.json([...children].map(([name, type]) => ({ path: `${prefix}${name}`, name, type })));
+  });
+  app.get('/api/v4/projects/:id/repository/files/:path', (req, res) => {
+    const file = files.get(req.params.path);
+    if (!file) return void res.status(404).json({ message: '404 File Not Found' });
+    res.json({
+      file_path: req.params.path, encoding: 'base64', content: Buffer.from(file.content).toString('base64'),
+      last_commit_id: file.lastCommitId
+    });
   });
   app.get('/api/v4/projects/:id/repository/commits', (req, res) => {
-    const dir = String(req.query.path ?? '');
-    const isInDir = (action: { file_path: string }) => action.file_path.startsWith(`${dir}/`);
-    const touching = commits.filter((commit) => commit.actions.some(isInDir));
+    const path = String(req.query.path ?? '');
+    const touches = (action: { file_path: string }) =>
+      action.file_path === path || action.file_path.startsWith(`${path}/`);
+    const touching = commits.filter((commit) => commit.actions.some(touches));
     res.json(touching.reverse().slice(0, 1).map((commit) => ({
       author_name: commit.author_name ?? 'Compte du token', committed_date: '2026-10-20T09:30:00Z',
       web_url: commit.web_url
@@ -119,12 +135,22 @@ export function fakeGitlab() {
   });
   app.post('/api/v4/projects/:id/repository/commits', (req, res) => {
     if (req.headers['private-token'] !== 'server-token') return void res.status(401).end();
-    const commit = { ...req.body, web_url: `https://gitlab.test/demo/-/commit/c0ffee${commits.length}` };
+    const stale = req.body.actions.find((action: Record<string, string>) =>
+      action.last_commit_id && files.get(action.file_path)?.lastCommitId !== action.last_commit_id);
+    if (stale) {
+      const message = 'You are attempting to update a file that has changed since you started editing it.';
+      return void res.status(400).json({ message });
+    }
+    const id = `c0ffee${commits.length}`;
+    const commit = { ...req.body, web_url: `https://gitlab.test/demo/-/commit/${id}` };
     commits.push(commit);
-    for (const action of req.body.actions) files.add(action.file_path);
-    res.status(201).json({ id: 'c0ffee', web_url: commit.web_url });
+    for (const action of req.body.actions) {
+      const content = action.encoding === 'base64' ? Buffer.from(action.content, 'base64').toString() : action.content;
+      put(action.file_path, content, id);
+    }
+    res.status(201).json({ id, web_url: commit.web_url });
   });
-  return { app, commits, files, identities };
+  return { app, commits, files, identities, put };
 }
 
 export const OPENCLOUD_TOKEN = 'ock_service-token-0123456789';

@@ -44,7 +44,7 @@ src/tools/registry.ts          charge les groupes de TOOL_GROUPS
 src/tools/runner.ts            droit -> exécution -> journal
 src/tools/downstream.ts        en-têtes d'identité vers un service aval (X-MCP-Maison-User)
 src/tools/slug.ts              SLUG_PATTERN, la seule définition d'un slug
-src/tools/gitlab/files.ts      chemins et extensions acceptés à la publication
+src/tools/gitlab/files.ts      chemins et extensions acceptés (jamais de fichier caché, jamais hors de GITLAB_ROOT_DIR)
 src/tools/opencloud/           client REST d'openCloud (jeton, délai, Retry-After) et ses lectures filtrées
 src/tools/core|gitlab|opencloud/
 ```
@@ -96,7 +96,7 @@ sequenceDiagram
     M->>P: User a la permission de l'outil ?
     alt refusé
         M->>A: ligne denied:true
-        M-->>C: isError "Accès refusé : … permission « gitlab:publish »"
+        M-->>C: isError "Accès refusé : … permission « gitlab:write »"
     else permis
         M->>T: handler(args, ctx)
         T-->>M: résultat + note({ commitId… })

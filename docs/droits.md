@@ -75,8 +75,8 @@ est écrite une fois dans les logs (avec sa position). Corriger le fichier suffi
 | `core:ping` | `ping` |
 | `core:whoami` | `whoami` |
 | `core:audit` | `audit_recent`, `GET /audit` |
-| `gitlab:read` | `gitlab_list_publications` |
-| `gitlab:publish` | `gitlab_publish` |
+| `gitlab:read` | `gitlab_read` (parcourir un dossier, lire un fichier) |
+| `gitlab:write` | `gitlab_edit`, `gitlab_write` (chaque appel accepté fait un commit, donc un déploiement) |
 | `opencloud:read` | les 11 outils `opencloud_*` (lecture seule ; `opencloud_container_logs` montre des journaux bruts, qui peuvent contenir un secret) |
 
 ## Outils visibles, refusés à l'appel
@@ -84,20 +84,20 @@ est écrite une fois dans les logs (avec sa position). Corriger le fichier suffi
 Claude voit tous les outils chargés, permis ou non ; le droit est vérifié au moment de l'appel. C'est un choix :
 
 - **Ce qu'il rapporte** : le refus est explicite, Claude peut le rapporter tel quel (« demandez la permission
-  `gitlab:publish` »), et il est journalisé. Un changement de `permissions.yaml` vaut tout de suite, sans que Claude
+  `gitlab:write` »), et il est journalisé. Un changement de `permissions.yaml` vaut tout de suite, sans que Claude
   ait à recharger la liste des outils de la session.
 - **Ce qu'il coûte** : Claude peut tenter un outil qu'il ne pourra pas appeler (un aller-retour perdu), et chacun
   voit le nom et la description de tous les outils. Ne rien mettre de confidentiel dans une description.
 
 Le refus, côté Claude :
 
-> Accès refusé : gitlab_publish demande la permission « gitlab:publish », que bob n'a pas.
+> Accès refusé : gitlab_write demande la permission « gitlab:write », que bob n'a pas.
 > Demandez-la à l'administrateur du serveur (permissions.yaml).
 
 Côté journal, une ligne `denied: true`, sans exécuter l'outil :
 ```json
-{"user":"bob","tool":"gitlab_publish","args":{"slug":"demo-x","fileCount":1,"paths":["index.html"]},
- "ok":false,"denied":true,"error":"permission gitlab:publish manquante"}
+{"user":"bob","tool":"gitlab_write","args":{"slug":"demo-x","fileCount":1,"paths":["demo-x/index.html"]},
+ "ok":false,"denied":true,"error":"permission gitlab:write manquante"}
 ```
 
 `whoami` montre à chacun ses groupes et les outils qu'il peut appeler (`allowedTools`). Ses permissions

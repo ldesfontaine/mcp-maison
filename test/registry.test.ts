@@ -30,7 +30,7 @@ describe('registre des groupes', () => {
       name: 'demo',
       envKeys: [],
       createTools: () => [defineTool({
-        name: 'demo_x', description: 'x', inputSchema: {}, permission: 'gitlab:publish', handler: () => replyText('x')
+        name: 'demo_x', description: 'x', inputSchema: {}, permission: 'gitlab:write', handler: () => replyText('x')
       })]
     };
     expect(() => loadToolGroups(['demo'], {}, [rogue])).toThrow(/hors du groupe "demo"/);

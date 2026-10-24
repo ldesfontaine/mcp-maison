@@ -1,10 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { listPublications } from '../src/tools/gitlab/api.js';
-import { gitlabConfig } from '../src/tools/gitlab/config.js';
 import { defineTool, replyText } from '../src/tools/types.js';
 import { cleanUpstreamError } from '../src/tools/upstream-error.js';
-import { fakeGitlab } from './fakes.js';
-import { callTool, DEV_TOKENS, extractText, listen, startMcp, startToolServer } from './helpers.js';
+import { callTool, DEV_TOKENS, extractText, startMcp, startToolServer } from './helpers.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -45,43 +42,11 @@ describe('erreurs d\'API amont', () => {
   });
 });
 
-describe('gitlab_list_publications et audit_recent : pages courtes', () => {
-  let gitlab: ReturnType<typeof fakeGitlab>;
-  let gitlabServer: Awaited<ReturnType<typeof listen>>;
+describe('audit_recent : pages courtes', () => {
   let mcp: Awaited<ReturnType<typeof startMcp>>;
-  const list = (args: Record<string, unknown> = {}) =>
-    callTool(mcp.url, DEV_TOKENS.lucas, 'gitlab_list_publications', args);
 
-  beforeAll(async () => {
-    gitlab = fakeGitlab();
-    gitlabServer = await listen(gitlab.app);
-    mcp = await startMcp({ GITLAB_URL: gitlabServer.url });
-    for (const slug of ['gamma', 'alpha', 'beta']) gitlab.files.add(`${slug}/index.html`);
-  });
-  afterAll(async () => { await mcp.stop(); gitlabServer.server.close(); });
-
-  it('slug et date seulement, par pages, avec un curseur opaque', async () => {
-    const first = JSON.parse(extractText(await list({ limit: 2 })));
-    expect(first).toEqual({
-      url: 'https://demo.invalid/{slug}/',
-      items: [{ slug: 'alpha', updatedAt: null }, { slug: 'beta', updatedAt: null }],
-      nextCursor: expect.any(String)
-    });
-    const second = JSON.parse(extractText(await list({ limit: 2, cursor: first.nextCursor })));
-    expect(second).toEqual({ url: 'https://demo.invalid/{slug}/', items: [{ slug: 'gamma', updatedAt: null }] });
-    expect((await list({ cursor: '!!' })).isError).toBe(true);
-    expect((await list({ limit: 101 })).isError).toBe(true);
-  });
-
-  it('updatedAt : la date du dernier commit sur le dossier', async () => {
-    const config = gitlabConfig.parse({
-      GITLAB_URL: gitlabServer.url, GITLAB_PROJECT_ID: '42', GITLAB_TOKEN: 'server-token',
-      GITLAB_PUBLISH_BASE_URL: 'https://demo.invalid'
-    });
-    gitlab.commits.push({ actions: [{ file_path: 'beta/index.html' }], web_url: 'u' });
-    const page = await listPublications(config, { limit: 10, after: 'alpha' });
-    expect(page).toEqual({ items: [{ slug: 'beta', updatedAt: '2026-10-20' }, { slug: 'gamma', updatedAt: null }] });
-  });
+  beforeAll(async () => { mcp = await startMcp(); });
+  afterAll(() => mcp.stop());
 
   it('audit_recent : 10 lignes par défaut, 50 au plus', async () => {
     for (let call = 0; call < 12; call += 1) await callTool(mcp.url, DEV_TOKENS.lucas, 'ping');

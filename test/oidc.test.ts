@@ -28,7 +28,7 @@ describe('identité OIDC (découverte .well-known, userinfo)', () => {
     expect(me).toMatchObject({
       id: 'f3a1', username: 'marie', name: 'Marie C.', provider: 'oidc', groups: ['integrateurs']
     });
-    expect(me.allowedTools).toEqual(['ping', 'whoami', 'gitlab_publish', 'gitlab_list_publications']);
+    expect(me.allowedTools).toEqual(['ping', 'whoami', 'gitlab_read', 'gitlab_edit', 'gitlab_write']);
   });
 
   it('OIDC_ALLOWED_GROUPS : un compte hors des groupes autorisés repart vers Claude avec access_denied', async () => {
@@ -65,7 +65,7 @@ describe('identité relue chez l\'IdP à chaque refresh', () => {
     const idp = fakeOidc(claims());
     const { mcp, idpUrl } = await startWithOidc(idp);
     const { tokens, refresh } = await obtainTokens(mcp.url, idpUrl);
-    expect((await whoami(mcp.url, tokens.access_token)).allowedTools).toContain('gitlab_publish');
+    expect((await whoami(mcp.url, tokens.access_token)).allowedTools).toContain('gitlab_write');
 
     idp.claims.groups = ['stagiaires'];
     const renewed = await (await refresh(tokens.refresh_token)).json();

@@ -26,16 +26,16 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('règles de droits', () => {
   it('"*", "groupe:*" et la permission exacte', () => {
-    expect(matchesPermission('*', 'gitlab:publish')).toBe(true);
-    expect(matchesPermission('gitlab:*', 'gitlab:publish')).toBe(true);
+    expect(matchesPermission('*', 'gitlab:write')).toBe(true);
+    expect(matchesPermission('gitlab:*', 'gitlab:write')).toBe(true);
     expect(matchesPermission('gitlab:*', 'gitlabx:publish')).toBe(false);
-    expect(matchesPermission('gitlab:read', 'gitlab:publish')).toBe(false);
+    expect(matchesPermission('gitlab:read', 'gitlab:write')).toBe(false);
   });
 
   it('cumule everyone, l\'utilisateur et ses groupes', () => {
     const user = { id: 'marie', provider: 'oidc' as const, groups: ['exemple/dev'] };
     expect(listGrantedPermissions(rules, user)).toEqual(['core:ping', 'core:whoami', 'gitlab:*']);
-    expect(rulesGrant(rules, user, 'gitlab:publish')).toBe(true);
+    expect(rulesGrant(rules, user, 'gitlab:write')).toBe(true);
     expect(rulesGrant(rules, user, 'core:audit')).toBe(false);
   });
 
@@ -53,7 +53,7 @@ describe('règles de droits', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('aucun permissions.yaml : droits minimaux pour tous'));
     expect(authorizer.listPermissions(user)).toEqual(MINIMAL_PERMISSIONS);
     expect(authorizer.can(user, 'core:whoami')).toBe(true);
-    for (const denied of ['core:audit', 'gitlab:publish', 'gitlab:read']) {
+    for (const denied of ['core:audit', 'gitlab:write', 'gitlab:read']) {
       expect(authorizer.can(user, denied)).toBe(false);
     }
   });
@@ -70,7 +70,7 @@ describe('règles de droits', () => {
 });
 
 const { lucas: LUCAS, bob: BOB } = DEV_TOKENS;
-const publishArgs = { slug: 'acme', files: [{ path: 'index.html', content: 'x' }] };
+const publishArgs = { files: [{ path: 'acme/index.html', content: 'x' }] };
 let mcp: Awaited<ReturnType<typeof startMcp>>;
 
 beforeAll(async () => { mcp = await startMcp({}, { rules }); });
@@ -78,14 +78,14 @@ afterAll(() => mcp.stop());
 
 describe('refus appliqués par le serveur', () => {
   it('outil refusé : erreur MCP lisible, handler non exécuté, ligne d\'audit "denied"', async () => {
-    const result = await callTool(mcp.url, BOB, 'gitlab_publish', publishArgs);
+    const result = await callTool(mcp.url, BOB, 'gitlab_write', publishArgs);
     expect(result.isError).toBe(true);
     expect(extractText(result))
-      .toContain('Accès refusé : gitlab_publish demande la permission « gitlab:publish », que bob n\'a pas');
+      .toContain('Accès refusé : gitlab_write demande la permission « gitlab:write », que bob n\'a pas');
 
     const lines = readFileSync(`${mcp.dataDir}/audit.jsonl`, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     expect(lines.at(-1)).toMatchObject({
-      user: 'bob', tool: 'gitlab_publish', ok: false, denied: true, error: 'permission gitlab:publish manquante'
+      user: 'bob', tool: 'gitlab_write', ok: false, denied: true, error: 'permission gitlab:write manquante'
     });
   });
 
@@ -100,20 +100,20 @@ describe('refus appliqués par le serveur', () => {
   it('/audit exige core:audit', async () => {
     expect((await fetch(`${mcp.url}/audit`, { headers: { Authorization: `Bearer ${BOB}` } })).status).toBe(403);
     const lucasAuth = { headers: { Authorization: `Bearer ${LUCAS}` } };
-    const entries = await (await fetch(`${mcp.url}/audit?tool=gitlab_publish`, lucasAuth)).json();
+    const entries = await (await fetch(`${mcp.url}/audit?tool=gitlab_write`, lucasAuth)).json();
     expect(entries[0]).toMatchObject({ user: 'bob', denied: true });
   });
 
   it('permissions.yaml modifié : pris en compte à chaud ; devenu invalide : règles précédentes gardées', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    const withBob = { ...rules, users: { ...rules.users, bob: ['gitlab:publish'] } };
+    const withBob = { ...rules, users: { ...rules.users, bob: ['gitlab:write'] } };
     rewritePermissions(mcp.permissionsFile, stringify(withBob));
     const bob = JSON.parse(extractText(await callTool(mcp.url, BOB, 'whoami')));
-    expect(bob.allowedTools).toEqual(['ping', 'whoami', 'gitlab_publish']);
+    expect(bob.allowedTools).toEqual(['ping', 'whoami', 'gitlab_edit', 'gitlab_write']);
 
     rewritePermissions(mcp.permissionsFile, 'users: [pas, une, table]');
-    const result = await callTool(mcp.url, BOB, 'gitlab_publish', publishArgs);
+    const result = await callTool(mcp.url, BOB, 'gitlab_write', publishArgs);
     // Échoue plus loin (GitLab injoignable), pas sur les droits.
     expect(extractText(result)).not.toContain('Accès refusé');
     expect(error).toHaveBeenCalledWith(expect.stringContaining('règles précédentes conservées'));

@@ -130,7 +130,8 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `GITLAB_PROJECT_ID` | | Le dépôt de publication (ID ou chemin) |
 | `GITLAB_TOKEN` | | Token de projet qui pousse (scope api) |
 | `GITLAB_BRANCH` | main | Branche publiée |
-| `GITLAB_PUBLISH_BASE_URL` | | URL où la CI publie `<slug>/` |
+| `GITLAB_ROOT_DIR` | (tout le dépôt) | Seul dossier lu et écrit, ex. `src` |
+| `GITLAB_PUBLISH_BASE_URL` | | URL où la CI publie ce dossier |
 | `OPENCLOUD_URL` | | Groupe opencloud : l'instance, https (http seulement en boucle locale ou vers une IP privée 10/8, 172.16/12, 192.168/16) |
 | `OPENCLOUD_TOKEN` | | Jeton d'API d'openCloud, portée `read` |
 | `OPENCLOUD_TIMEOUT_MS` | 10000 | Délai d'un appel à openCloud |

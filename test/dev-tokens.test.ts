@@ -44,17 +44,17 @@ describe('AUTH_DEV_TOKENS', () => {
 
   it('audit_recent filtre par slug et ne journalise jamais le contenu des fichiers', async () => {
     // GitLab injoignable (127.0.0.1:9) : la publication échoue mais doit être journalisée
-    const files = [{ path: 'index.html', content: 'SECRET-CONTENT' }];
-    const result = await callTool(mcp.url, LUCAS, 'gitlab_publish', { slug: 'demo-x', files });
+    const files = [{ path: 'demo-x/index.html', content: 'SECRET-CONTENT' }];
+    const result = await callTool(mcp.url, LUCAS, 'gitlab_write', { files });
     expect(result.isError).toBe(true);
     const log = extractText(await callTool(mcp.url, LUCAS, 'audit_recent', { slug: 'demo-x' }));
     const [header, entry, ...rest] = log.split('\n');
     expect(header).toBe('date (UTC) | utilisateur | outil | slug | statut | durée');
-    expect(entry).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d \| lucas \| gitlab_publish \| demo-x \| échec \| \d+ ms$/);
+    expect(entry).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d \| lucas \| gitlab_write \| demo-x \| échec \| \d+ ms$/);
     expect(rest).toEqual([]);
     expect(log).not.toContain('SECRET-CONTENT');
-    const [line] = await mcp.audit.listRecent({ slug: 'demo-x', tool: 'gitlab_publish' }); // le détail reste au journal
-    expect(line).toMatchObject({ args: { slug: 'demo-x', fileCount: 1, paths: ['index.html'] } });
+    const [line] = await mcp.audit.listRecent({ slug: 'demo-x', tool: 'gitlab_write' }); // le détail reste au journal
+    expect(line).toMatchObject({ args: { slug: 'demo-x', fileCount: 1, paths: ['demo-x/index.html'] } });
     expect(line.error).toMatch(/Échec de la publication/);
   });
 });

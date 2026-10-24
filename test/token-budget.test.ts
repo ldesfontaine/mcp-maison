@@ -6,6 +6,7 @@ import { DEV_TOKENS, mcpClient, startMcp } from './helpers.js';
 const BUDGET = {
   description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 3_000, group: 3_000
 };
+const GITLAB_TOOLS = ['gitlab_read', 'gitlab_edit', 'gitlab_write'];
 const OPENCLOUD_TOOLS = [
   'opencloud_overview', 'opencloud_machines', 'opencloud_containers', 'opencloud_container_logs',
   'opencloud_directory', 'opencloud_jobs', 'opencloud_probes', 'opencloud_status', 'opencloud_alerts',
@@ -44,7 +45,7 @@ function collectParamDescriptions(schema: unknown, path = ''): [string, string][
 describe('budget de définition des outils', () => {
   it('tous les groupes de production sont mesurés', () => {
     expect(tools.map((tool) => tool.name)).toEqual(
-      ['ping', 'whoami', 'audit_recent', 'gitlab_publish', 'gitlab_list_publications', ...OPENCLOUD_TOOLS]);
+      ['ping', 'whoami', 'audit_recent', ...GITLAB_TOOLS, ...OPENCLOUD_TOOLS]);
   });
 
   it(`description : ${BUDGET.description} caractères et ${BUDGET.sentences} phrases au plus`, () => {
@@ -90,8 +91,9 @@ describe('budget de définition des outils', () => {
     const local = { readOnlyHint: true, openWorldHint: false };
     expect(annotations).toEqual({
       ping: local, whoami: local, audit_recent: local,
-      gitlab_list_publications: { readOnlyHint: true, openWorldHint: true },
-      gitlab_publish: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+      gitlab_read: { readOnlyHint: true, openWorldHint: true }, // lit GitLab
+      gitlab_edit: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+      gitlab_write: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
       ...Object.fromEntries(OPENCLOUD_TOOLS.map((name) => [name, local])) // lectures seules d'openCloud
     });
   });

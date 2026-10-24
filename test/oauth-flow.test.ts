@@ -50,16 +50,16 @@ describe('serveur d\'autorisation OAuth 2.1 (connexion déléguée à l\'IdP OID
     expect((await flow.exchange(flow.verifier)).status).toBe(400); // code à usage unique
     secretsSeen.push(tokens.access_token, tokens.refresh_token);
 
-    const files = [{ path: 'index.html', content: '<h1>x</h1>' }];
-    const published = await callTool(mcp.url, tokens.access_token, 'gitlab_publish', { slug: 'acme', files });
+    const files = [{ path: 'acme/index.html', content: '<h1>x</h1>' }];
+    const published = await callTool(mcp.url, tokens.access_token, 'gitlab_write', { files });
     expect(published.isError).toBeFalsy();
     expect(gitlab.commits[0]).toMatchObject({
       author_name: 'Lucas D.', author_email: 'lucas@example.com',
-      commit_message: 'publish(acme): 1 fichier(s) (via lucas)'
+      commit_message: 'write(acme): 1 fichier(s) (via lucas)'
     });
     const entries = await (await fetch(`${mcp.url}/audit?slug=acme`, authorize(tokens.access_token))).json();
     expect(entries[0]).toMatchObject({
-      user: '7', username: 'lucas', provider: 'oidc', tool: 'gitlab_publish', ok: true, result: { commitId: 'c0ffee' }
+      user: '7', username: 'lucas', provider: 'oidc', tool: 'gitlab_write', ok: true, result: { commitId: 'c0ffee0' }
     });
   });
 
@@ -117,8 +117,8 @@ describe('serveur d\'autorisation OAuth 2.1 (connexion déléguée à l\'IdP OID
   });
 
   it('aucun secret dans les logs : jetons émis, secret DCR, secret OIDC, jetons de l\'IdP, token GitLab', async () => {
-    const files = [{ path: 'a.html', content: 'x' }];
-    await callTool(mcp.url, DEV_TOKENS.lucas, 'gitlab_publish', { slug: 'x1', files });
+    const files = [{ path: 'x1/a.html', content: 'x' }];
+    await callTool(mcp.url, DEV_TOKENS.lucas, 'gitlab_write', { files });
     const output = logs.join('\n');
     expect(output).toContain('[oauth] connexion de lucas'); // on lit bien les logs
     const secrets = [...secretsSeen, IDP_CLIENT.secret, 'server-token', DEV_TOKENS.lucas, ...idp.issuedRefreshTokens];

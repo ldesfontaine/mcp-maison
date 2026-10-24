@@ -4,16 +4,18 @@
  * Nom de fichier tel qu'il sera écrit : minuscules, accents retirés, espaces et caractères hors A-Z a-z 0-9 . _ -
  * remplacés par "-" (un "/" ou un "\" compris : jamais de dossier caché dans un nom). Un nom qui commence par un point
  * le garde : il sera refusé ensuite comme fichier caché, plutôt que renommé en silence.
- * Ex. « Logo Client.PNG » → « logo-client.png ».
+ * Ex. « Logo Client.PNG » → « logo-client.png » ; « 日本.png » → « fichier.png ».
  */
 export function normalizeFileName(name: string): string {
-  return name
-    .normalize('NFD').replace(/\p{M}/gu, '') // accents détachés puis retirés
+  const normalized = name
+    .normalize('NFKD').replace(/\p{M}/gu, '') // accents détachés puis retirés ; ligatures (ﬁ) décomposées
     .toLowerCase().trim()
     .replace(/[^a-z0-9._-]+/g, '-')
     .replace(/-{2,}/g, '-')
     .replace(/-+\./g, '.') // « photo-.jpeg » → « photo.jpeg »
     .replace(/^-+|-+$/g, '');
+  // Nom sans aucune lettre latine (« 日本.png » → « .png ») : un nom générique, pas un refus pour « fichier caché ».
+  return normalized.startsWith('.') && !name.trim().startsWith('.') ? `fichier${normalized}` : normalized;
 }
 
 const ascii = (bytes: Buffer, start: number, end: number) => bytes.subarray(start, end).toString('latin1');
@@ -33,6 +35,9 @@ const SIGNATURES: Record<string, (bytes: Buffer) => boolean> = {
   woff2: (b) => ascii(b, 0, 4) === 'wOF2',
   ttf: (b) => startsWith(b, [0x00, 0x01, 0x00, 0x00]) || ascii(b, 0, 4) === 'true'
 };
+
+/** Les formats binaires reconnus par leur signature : les seuls qu'un lien de dépôt accepte. */
+export const BINARY_EXTENSIONS = Object.keys(SIGNATURES);
 
 /** Le contenu a-t-il la signature de son extension ? Vrai pour une extension sans signature connue (texte). */
 export function matchesSignature(extension: string, bytes: Buffer): boolean {

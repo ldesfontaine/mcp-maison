@@ -3,7 +3,7 @@ import type { AuditEntry, AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
 import { getDisplayId } from '../identity/user.js';
 import { parseSize } from './file-types.js';
-import type { UploadedFile, UploadLink, UploadLinks, UploadOutcome } from './links.js';
+import type { UploadedFile, UploadLink, UploadLinks, UploadOutcome, UploadReceiver } from './links.js';
 import { PAGE_CSP, renderInvalidLinkPage, renderUploadPage } from './page.js';
 
 export interface UploadRoutesOptions {
@@ -17,6 +17,20 @@ export interface UploadRoutesOptions {
 export const MAX_FILES = 20;
 const PURGE_INTERVAL_MS = 10 * 60_000;
 const INVALID_LINK = 'Ce lien n\'est plus valable : il a expiré ou a déjà servi. Demandez-en un nouveau à Claude.';
+const BUSY = 'Un envoi est déjà en cours avec ce lien.';
+const UNREADABLE = 'Envoi illisible : recommencer depuis la page.';
+
+/** Un envoi qui tient la réservation de son lien. */
+interface Claimed { token: string; claim: string; link: UploadLink; receiver: UploadReceiver }
+
+/** Le début d'une ligne de journal : qui, quel receveur, où. Jamais le jeton. */
+function startEntry(link: UploadLink, receiver: UploadReceiver): AuditEntry {
+  return {
+    ts: new Date().toISOString(), user: link.user.id, username: link.user.username, userName: link.user.name,
+    provider: link.user.provider, tool: receiver.auditTool, args: { ...receiver.describe(link.target).auditArgs },
+    ok: false, ms: 0
+  };
+}
 
 /** La page et l'envoi ne doivent être ni mis en cache, ni indexés, ni encadrés, ni transmis en Referer. */
 function setPageHeaders(res: ExpressResponse) {
@@ -47,74 +61,88 @@ export function mountUploads(app: Express, options: UploadRoutesOptions) {
     }));
   });
 
-  // Ordre : origine, jeton, type, PUIS lecture du corps. Sans lien valable, rien n'est lu (pas de 10 Mo anonymes).
+  // Ordre : origine, jeton, type, droit, réservation, PUIS lecture du corps. Sans lien valable et réservé, rien n'est
+  // lu : ni 10 Mo anonymes, ni N corps en parallèle avec le même jeton.
   app.post('/upload/:token',
-    (req, res, next) => {
+    async (req, res, next) => {
       setPageHeaders(res);
       const origin = req.headers.origin;
       if (origin && options.allowedOrigin && origin !== options.allowedOrigin) {
         return void reply(res, 403, 'Origine refusée.');
       }
-      const link = links.find(req.params.token);
-      if (!link || !links.receiver(link.kind)) return void reply(res, 404, INVALID_LINK);
+      const token = req.params.token;
+      const link = links.find(token);
+      const receiver = link && links.receiver(link.kind);
+      if (!link || !receiver) return void reply(res, 404, INVALID_LINK);
       if (!req.is('multipart/form-data')) return void reply(res, 415, 'Envoi attendu en multipart/form-data.');
-      res.locals.link = link;
+      // Le droit a pu être retiré depuis la création du lien (permissions.yaml relu à chaud).
+      if (!authorizer.can(link.user, receiver.permission)) {
+        await audit.write({ ...startEntry(link, receiver), denied: true,
+          error: `permission ${receiver.permission} manquante` });
+        return void reply(res, 403, `Accès refusé : la permission « ${receiver.permission} » a été retirée.`);
+      }
+      const claim = links.claim(token);
+      // Consommé entre-temps : la même réponse neutre qu'un lien inconnu.
+      if (!claim) {
+        const gone = !links.find(token);
+        return void reply(res, gone ? 404 : 409, gone ? INVALID_LINK : BUSY);
+      }
+      res.locals.upload = { token, claim, link, receiver };
       next();
     },
     express.raw({ type: 'multipart/form-data', limit: options.maxBody }),
     async (req, res) => {
-      const token = req.params.token as string;
-      const link = res.locals.link as UploadLink;
-      const receiver = links.receiver(link.kind)!;
-      let files: UploadedFile[];
+      const { token, claim, link, receiver } = res.locals.upload as Claimed;
+      let consumed = false;
       try {
-        files = await readFiles(req);
-      } catch {
-        return void reply(res, 400, 'Envoi illisible : recommencer depuis la page.');
-      }
-      if (!files.length) return void reply(res, 400, 'Aucun fichier reçu.');
-      if (files.length > MAX_FILES) return void reply(res, 400, `${MAX_FILES} fichiers au plus par envoi.`);
+        let files: UploadedFile[];
+        try {
+          files = await readFiles(req);
+        } catch {
+          return void reply(res, 400, UNREADABLE);
+        }
+        if (!files.length) return void reply(res, 400, 'Aucun fichier reçu.');
+        if (files.length > MAX_FILES) return void reply(res, 400, `${MAX_FILES} fichiers au plus par envoi.`);
 
-      const started = Date.now();
-      const { auditArgs } = receiver.describe(link.target);
-      const entry: AuditEntry = {
-        ts: new Date(started).toISOString(), user: link.user.id, username: link.user.username,
-        userName: link.user.name, provider: link.user.provider, tool: receiver.auditTool,
-        args: { ...auditArgs, fileCount: files.length }, ok: false, ms: 0
-      };
-      // Le droit a pu être retiré depuis la création du lien (permissions.yaml relu à chaud).
-      if (!authorizer.can(link.user, receiver.permission)) {
-        await audit.write({ ...entry, denied: true, error: `permission ${receiver.permission} manquante` });
-        return void reply(res, 403, `Accès refusé : la permission « ${receiver.permission} » a été retirée.`);
+        const entry = startEntry(link, receiver);
+        entry.args.fileCount = files.length;
+        const started = Date.now();
+        let outcome: UploadOutcome;
+        try {
+          outcome = await receiver.receive(files, link);
+        } catch (error) {
+          console.error(`[upload] [${getDisplayId(link.user)}] erreur interne :`, error);
+          outcome = { ok: false, error: 'Erreur interne : rien n\'a été envoyé.', args: {} };
+        }
+        const args = { ...entry.args, ...outcome.args };
+        if (outcome.ok) {
+          links.consume(token, claim);
+          consumed = true;
+          const where = String(entry.args.path ?? '') || '/';
+          console.log(`[upload] [${getDisplayId(link.user)}] ${outcome.paths.length} fichier(s) dans ${where}`);
+          await audit.write({ ...entry, args, result: outcome.result, ok: true, ms: Date.now() - started });
+          return void res.json({ ok: true, files: outcome.paths, message: outcome.message });
+        }
+        const error = outcome.error ?? `refusé : ${outcome.refused?.map((r) => `${r.name} (${r.reason})`).join(', ')}`;
+        await audit.write({ ...entry, args, error: error.slice(0, 500), ms: Date.now() - started });
+        const status = outcome.refused?.length ? 400 : 502;
+        res.status(status).json({ ok: false, refused: outcome.refused, error: outcome.error });
+      } finally {
+        // Tout envoi qui n'a pas abouti rend le lien : la personne corrige et renvoie.
+        if (!consumed) links.release(token, claim);
       }
-      if (!links.claim(token)) return void reply(res, 409, 'Un envoi est déjà en cours avec ce lien.');
-
-      let outcome: UploadOutcome;
-      try {
-        outcome = await receiver.receive(files, link);
-      } catch (error) {
-        console.error(`[upload] [${getDisplayId(link.user)}] erreur interne :`, error);
-        outcome = { ok: false, error: 'Erreur interne : rien n\'a été envoyé.', args: {} };
-      }
-      const args = { ...entry.args, ...outcome.args };
-      if (outcome.ok) {
-        links.consume(token);
-        const where = auditArgs.path || '/';
-        console.log(`[upload] [${getDisplayId(link.user)}] ${outcome.paths.length} fichier(s) dans ${where}`);
-        await audit.write({ ...entry, args, result: outcome.result, ok: true, ms: Date.now() - started });
-        return void res.json({ ok: true, files: outcome.paths, message: outcome.message });
-      }
-      links.release(token);
-      const error = outcome.error ?? `refusé : ${outcome.refused?.map((r) => `${r.name} (${r.reason})`).join(', ')}`;
-      await audit.write({ ...entry, args, error: error.slice(0, 500), ms: Date.now() - started });
-      const status = outcome.refused?.length ? 400 : 502;
-      res.status(status).json({ ok: false, refused: outcome.refused, error: outcome.error });
     });
 
-  // Corps trop gros (413) ou illisible : une phrase pour la page, pas l'erreur JSON-RPC de /mcp.
+  // Erreurs de lecture du corps (trop gros, encodage inconnu…) : le lien est rendu, et une phrase pour la page,
+  // jamais l'erreur JSON-RPC de /mcp (la page afficherait « [object Object] »).
   app.use('/upload', (error: { status?: number }, _req: Request, res: ExpressResponse, next: NextFunction) => {
-    if (error?.status === 413) return void reply(res, 413, 'Trop lourd : réduisez la taille ou le nombre de fichiers.');
-    next(error);
+    const upload = res.locals.upload as Claimed | undefined;
+    if (upload) links.release(upload.token, upload.claim);
+    if (res.headersSent) return void next(error);
+    const status = error?.status ?? 500;
+    if (status >= 500) console.error('[upload] erreur interne :', error);
+    if (status === 413) return void reply(res, 413, 'Trop lourd : réduisez la taille ou le nombre de fichiers.');
+    reply(res, status >= 500 ? 500 : status, status >= 500 ? 'Erreur interne : rien n\'a été envoyé.' : UNREADABLE);
   });
 
   const purgeTimer = setInterval(() => links.purgeExpired(), PURGE_INTERVAL_MS);

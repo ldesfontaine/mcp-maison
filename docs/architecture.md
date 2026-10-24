@@ -43,7 +43,7 @@ src/uploads/
   links.ts                     liens de dépôt à usage unique (jeton haché en SQLite) et receveurs des groupes
   routes.ts                    GET /upload/:jeton (la page), POST (multipart, parseur de Node) -> receveur -> journal
   page.ts                      la page de dépôt : autonome, CSP stricte (empreintes du style et du script)
-  file-types.ts                nom normalisé, type réel (signature des images, PDF, polices)
+  file-types.ts                nom normalisé, type réel (signature des images, PDF, polices : seuls formats déposables)
 src/tools/types.ts             contrat Tool, ToolGroup, ToolContext, ToolServices, defineGroupConfig
 src/tools/registry.ts          charge les groupes de TOOL_GROUPS
 src/tools/runner.ts            droit -> exécution -> journal

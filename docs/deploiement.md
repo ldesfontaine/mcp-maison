@@ -89,7 +89,9 @@ Ne pas mettre d'authentification du proxy devant `/mcp`, `/.well-known/…`, `/r
 lien de dépôt dans son navigateur (le jeton du lien est la seule autorisation). `/health` peut rester interne.
 
 Taille d'un envoi par lien de dépôt : `MAX_BODY`. Si le proxy borne aussi les corps de requête (Nginx
-`client_max_body_size`, 1 Mo par défaut), le régler au moins à cette valeur.
+`client_max_body_size`, 1 Mo par défaut), le régler au moins à cette valeur. Le jeton d'un lien de dépôt est dans
+le chemin (`/upload/<jeton>`) : masquer ce chemin dans les journaux d'accès du proxy, ou ne pas les journaliser. Le
+serveur, lui, ne l'écrit jamais.
 
 ## Versions publiées
 

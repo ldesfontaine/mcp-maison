@@ -54,10 +54,10 @@ ALTER TABLE oauth_codes ADD COLUMN scopes TEXT NOT NULL DEFAULT '';`
   {
     version: 5,
     name: 'liens de dépôt de fichiers, à usage unique',
-    // claimed_at : un envoi en cours (deux envois simultanés ne commitent pas deux fois).
+    // claimed_at, claim_id : un envoi en cours et sa réservation (deux envois simultanés ne commitent pas deux fois).
     sql: `
 CREATE TABLE upload_links (
   token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, user TEXT NOT NULL, target TEXT NOT NULL,
-  expires_at INTEGER NOT NULL, claimed_at INTEGER);`
+  expires_at INTEGER NOT NULL, claimed_at INTEGER, claim_id TEXT);`
   }
 ];

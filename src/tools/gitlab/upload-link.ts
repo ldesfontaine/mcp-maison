@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { getDisplayId } from '../../identity/user.js';
-import { matchesSignature, normalizeFileName } from '../../uploads/file-types.js';
+import { BINARY_EXTENSIONS, matchesSignature, normalizeFileName } from '../../uploads/file-types.js';
 import type { Refusal, UploadedFile, UploadLink, UploadLinks, UploadReceiver } from '../../uploads/links.js';
 import { buildDownstreamHeaders } from '../downstream.js';
 import { defineTool, replyText } from '../types.js';
@@ -10,6 +10,13 @@ import type { GitlabConfig } from './config.js';
 import { ALLOWED_EXTENSIONS, readExtension, safeDir, safePath, topSlug } from './files.js';
 
 const KIND = 'gitlab';
+
+/**
+ * Ce qu'un lien accepte : les binaires publiables (images, PDF, polices), tous contrôlés par signature. Jamais de
+ * HTML, JS, SVG ni JSON : un lien qui fuite ne doit pas permettre de publier du contenu actif au nom de la personne.
+ * Le texte passe par gitlab_write, que Claude écrit lui-même.
+ */
+const UPLOAD_EXTENSIONS = ALLOWED_EXTENSIONS.filter((extension) => BINARY_EXTENSIONS.includes(extension));
 
 /** Où un lien dépose : un dossier relatif à GITLAB_ROOT_DIR, et si l'existant peut être remplacé. */
 interface Target { dir: string; overwrite: boolean }
@@ -41,12 +48,12 @@ export function createUploadLinkTool(config: GitlabConfig, uploads: UploadLinks)
   });
 }
 
-/** Reçoit les fichiers d'un lien : mêmes règles que gitlab_write, plus le contrôle du type réel. Un seul commit. */
+/** Reçoit les fichiers d'un lien : règles de gitlab_write, binaires seulement, type réel contrôlé. Un seul commit. */
 export function createUploadReceiver(config: GitlabConfig): UploadReceiver {
   return {
     permission: 'gitlab:write',
     auditTool: 'gitlab_upload',
-    extensions: ALLOWED_EXTENSIONS,
+    extensions: UPLOAD_EXTENSIONS,
     describe(target) {
       const { dir, overwrite } = readTarget(target);
       return { folder: dir, auditArgs: { slug: topSlug(dir, true), path: dir, overwrite } };
@@ -92,6 +99,7 @@ function prepareFiles(files: UploadedFile[], dir: string) {
     const checked = safePath.safeParse(path);
     let reason: string | undefined;
     if (!checked.success) reason = checked.error.issues[0].message;
+    else if (!UPLOAD_EXTENSIONS.includes(readExtension(path)!)) reason = 'type refusé ici : images, PDF ou polices';
     else if (!file.bytes.length) reason = 'fichier vide';
     else if (!matchesSignature(readExtension(path)!, file.bytes)) reason = 'contenu non conforme à l\'extension';
     else if (names.has(path)) reason = `même nom qu'un autre fichier une fois normalisé (${path})`;

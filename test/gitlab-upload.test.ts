@@ -103,16 +103,21 @@ describe('envoi par la page', () => {
     expect(gitlab.commits).toHaveLength(1);
   });
 
-  it('extension interdite, fichier caché, "..", type réel faux, vide : refusés un par un, rien d\'écrit', async () => {
+  it('extension interdite, contenu actif, fichier caché, "..", type réel faux, vide : refusés un par un, rien d\'écrit',
+    async () => {
     const { page } = await createLink();
     const sent = await upload(page, [
-      ['ok.png', PNG], ['shell.php', Buffer.from('<?php')], ['.htaccess', Buffer.from('x')],
+      ['ok.png', PNG], ['shell.php', Buffer.from('<?php')], ['index.html', Buffer.from('<script>x</script>')],
+      ['logo.svg', Buffer.from('<svg onload="x"/>')], ['.htaccess', Buffer.from('x')],
       ['../evil.png', PNG], ['faux.png', Buffer.from('GIF89a…')], ['vide.pdf', Buffer.alloc(0)]
     ]);
     expect(sent.status).toBe(400);
     expect(sent.body.ok).toBe(false);
     expect(sent.body.refused.map((r: { name: string }) => r.name))
-      .toEqual(['shell.php', '.htaccess', '../evil.png', 'faux.png', 'vide.pdf']);
+      .toEqual(['shell.php', 'index.html', 'logo.svg', '.htaccess', '../evil.png', 'faux.png', 'vide.pdf']);
+    // Un lien qui fuite ne publie pas de contenu actif : HTML, JS, SVG passent par gitlab_write, écrit par Claude.
+    expect(sent.body.refused.find((r: { name: string }) => r.name === 'index.html').reason)
+      .toBe('type refusé ici : images, PDF ou polices');
     expect(sent.body.refused.find((r: { name: string }) => r.name === 'faux.png').reason)
       .toBe('contenu non conforme à l\'extension');
     expect(gitlab.commits).toHaveLength(0);
@@ -147,6 +152,33 @@ describe('envoi par la page', () => {
     expect(await upload(page, [['a.png', PNG]])).toEqual(await upload(unknown, [['a.png', PNG]]));
     expect(expiredHtml).not.toContain(token);
     expect(gitlab.commits).toHaveLength(0);
+  });
+
+  it('nom sans lettre latine : nom générique plutôt qu\'un refus', async () => {
+    const { page } = await createLink();
+    expect((await upload(page, [['日本.png', PNG]])).body.files).toEqual(['acme/assets/fichier.png']);
+  });
+
+  it('corps illisible (encodage inconnu) : une phrase pour la page, pas une erreur JSON-RPC ; lien rendu', async () => {
+    const { page } = await createLink();
+    const body = new FormData();
+    body.append('files', new File([new Uint8Array(PNG)], 'a.png'));
+    const request = new Request(page, { method: 'POST', body });
+    const response = await fetch(page, {
+      method: 'POST', body: await request.arrayBuffer(),
+      headers: { 'Content-Type': request.headers.get('content-type')!, 'Content-Encoding': 'br' }
+    });
+    expect(response.status).toBe(400); // br annoncé, contenu qui n'en est pas
+    expect(await response.json()).toEqual({ ok: false, error: 'Envoi illisible : recommencer depuis la page.' });
+    expect((await upload(page, [['a.png', PNG]])).status).toBe(200);
+  });
+
+  it('envois simultanés sur un même lien : un seul commit ; les autres, 409 puis 404 une fois consommé', async () => {
+    const { page } = await createLink();
+    const results = await Promise.all(Array.from({ length: 5 }, () => upload(page, [['a.png', PNG]])));
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409, 409, 409, 409]);
+    expect(gitlab.commits).toHaveLength(1);
+    expect((await upload(page, [['a.png', PNG]])).status).toBe(404);
   });
 
   it('autre chose que du multipart : refusé (415) ; trop de fichiers : refusé (400)', async () => {

@@ -55,6 +55,7 @@ const SCRIPT = `
   input.accept = data.extensions.map((e) => '.' + e).join(',');
   let files = [];
   let done = false;
+  let refusedByServer = {}; // nom -> raison : gardé jusqu'à ce que le fichier soit retiré ou remplacé
 
   const size = (n) => n < 1024 ? n + ' o' : n < 1048576 ? Math.round(n / 1024) + ' Ko'
     : (n / 1048576).toFixed(1).replace(/\\.0$/, '').replace('.', ',') + ' Mo';
@@ -66,7 +67,7 @@ const SCRIPT = `
     return '';
   };
 
-  function render(reasons) {
+  function render() {
     list.replaceChildren();
     const total = files.reduce((sum, f) => sum + f.size, 0);
     let blocked = !files.length || done;
@@ -78,12 +79,14 @@ const SCRIPT = `
       if (!done) {
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Retirer';
         remove.setAttribute('aria-label', 'Retirer ' + file.name);
-        remove.addEventListener('click', () => { files.splice(index, 1); setStatus(''); render(); });
+        remove.addEventListener('click', () => {
+          files.splice(index, 1); delete refusedByServer[file.name]; setStatus(''); render();
+        });
         li.append(remove);
       }
-      const why = (reasons && reasons[file.name]) || problem(file);
+      const why = refusedByServer[file.name] || problem(file);
       if (why) {
-        if (problem(file)) blocked = true;
+        blocked = true; // renvoyer ce fichier tel quel donnerait le même refus
         li.classList.add('bad');
         const reason = document.createElement('span'); reason.className = 'why'; reason.textContent = why;
         li.append(reason);
@@ -111,6 +114,7 @@ const SCRIPT = `
     if (done) return;
     for (const file of fileList) {
       files = files.filter((f) => f.name !== file.name);
+      delete refusedByServer[file.name];
       files.push(file);
     }
     setStatus('');
@@ -130,15 +134,23 @@ const SCRIPT = `
     files.forEach((file) => body.append('files', file, file.name));
     send.disabled = true;
     setStatus('Envoi en cours…');
-    let answer;
+    let response;
     try {
-      const headers = { Accept: 'application/json' };
-      const response = await fetch(location.pathname, { method: 'POST', body, headers });
-      answer = await response.json();
+      response = await fetch(location.pathname, { method: 'POST', body, headers: { Accept: 'application/json' } });
     } catch {
       setStatus('Envoi impossible : vérifiez la connexion, puis réessayez.', 'bad');
       send.disabled = false;
       return;
+    }
+    // Une réponse qui n'est pas celle du serveur (proxy en 413 ou 502, page HTML) : un message, jamais un objet.
+    let answer = {};
+    if ((response.headers.get('content-type') || '').includes('application/json')) {
+      answer = await response.json().catch(() => ({}));
+    }
+    if (typeof answer.error !== 'string') {
+      answer.error = response.status === 413 ? 'Trop lourd : réduisez la taille ou le nombre de fichiers.'
+        : response.ok || answer.refused ? ''
+        : 'Envoi impossible (erreur ' + response.status + ') : réessayez plus tard.';
     }
     if (answer.ok) {
       done = true;
@@ -147,10 +159,9 @@ const SCRIPT = `
       setStatus(answer.message + ' Vous pouvez revenir dans Claude et dire « c\\'est envoyé ».', 'ok');
       return;
     }
-    const reasons = {};
-    (answer.refused || []).forEach((r) => { reasons[r.name] = r.reason; });
-    render(reasons);
-    setStatus(answer.error || 'Rien n\\'a été envoyé : corrigez les fichiers signalés, puis réessayez.', 'bad');
+    (Array.isArray(answer.refused) ? answer.refused : []).forEach((r) => { refusedByServer[r.name] = r.reason; });
+    render();
+    setStatus(answer.error || 'Rien n\\'a été envoyé : retirez les fichiers signalés, puis réessayez.', 'bad');
   });
 
   render();

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../identity/oauth/database.js';
 import { getEpochSeconds } from '../identity/oauth/store.js';
+import { randomUUID } from 'node:crypto';
 import { generateSecret, hashSecret } from '../identity/secrets.js';
 import type { User } from '../identity/user.js';
 
@@ -47,8 +48,9 @@ export interface UploadLinksOptions {
   ttlSeconds: number;
 }
 
-// Un envoi en cours depuis plus longtemps a planté (le commit est borné à 30 s) : son lien redevient utilisable.
-const STALE_CLAIM_SECONDS = 120;
+// Un envoi en cours depuis plus longtemps a planté : son lien redevient utilisable. Large devant un envoi réel
+// (lecture de l'arbre GitLab par pages de 10 s, puis commit borné à 30 s).
+const STALE_CLAIM_SECONDS = 600;
 
 type LinkRow = { kind: string; user: string; target: string; expires_at: number };
 
@@ -112,22 +114,30 @@ export class UploadLinks {
     return { kind: row.kind, user: JSON.parse(row.user), target: JSON.parse(row.target), expiresAt: row.expires_at };
   }
 
-  /** Réserve le lien pour un envoi ; faux s'il est expiré, consommé, ou si un autre envoi est en cours. */
-  claim(token: string): boolean {
+  /**
+   * Réserve le lien pour un envoi ; renvoie l'identifiant de la réservation, ou undefined s'il est expiré, consommé,
+   * ou si un autre envoi le tient. Seul le détenteur de la réservation peut ensuite la rendre ou consommer le lien.
+   */
+  claim(token: string): string | undefined {
     const now = getEpochSeconds();
-    return this.database.prepare(`UPDATE upload_links SET claimed_at = ?
+    const claim = randomUUID();
+    const changes = this.database.prepare(`UPDATE upload_links SET claimed_at = ?, claim_id = ?
       WHERE token_hash = ? AND expires_at >= ? AND (claimed_at IS NULL OR claimed_at < ?)`)
-      .run(now, hashSecret(token), now, now - STALE_CLAIM_SECONDS).changes === 1;
+      .run(now, claim, hashSecret(token), now, now - STALE_CLAIM_SECONDS).changes;
+    return changes === 1 ? claim : undefined;
   }
 
   /** Envoi refusé ou en échec : le lien redevient utilisable jusqu'à son expiration. */
-  release(token: string) {
-    this.database.prepare('UPDATE upload_links SET claimed_at = NULL WHERE token_hash = ?').run(hashSecret(token));
+  release(token: string, claim: string) {
+    this.database
+      .prepare('UPDATE upload_links SET claimed_at = NULL, claim_id = NULL WHERE token_hash = ? AND claim_id = ?')
+      .run(hashSecret(token), claim);
   }
 
   /** Envoi réussi : le lien ne sert plus. */
-  consume(token: string) {
-    this.database.prepare('DELETE FROM upload_links WHERE token_hash = ?').run(hashSecret(token));
+  consume(token: string, claim: string) {
+    this.database.prepare('DELETE FROM upload_links WHERE token_hash = ? AND claim_id = ?')
+      .run(hashSecret(token), claim);
   }
 
   purgeExpired() {

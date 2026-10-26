@@ -108,4 +108,5 @@ Sauvegarder `data/`, changer la version de l'image dans `docker-compose.yml`, pu
 
 [Architecture](docs/architecture.md) · [Identité](docs/identite.md) · [Droits](docs/droits.md) ·
 [Ajouter un outil](docs/ajouter-un-outil.md) · [Ajouter une intégration](docs/ajouter-une-integration.md) ·
-[Déploiement](docs/deploiement.md) · [Sobriété en tokens](docs/sobriete-tokens.md)
+[Déploiement](docs/deploiement.md) · [Sobriété en tokens](docs/sobriete-tokens.md) ·
+[Exemple de skill Claude](docs/exemple-skill-publier.md)

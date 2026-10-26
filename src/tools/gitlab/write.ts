@@ -9,7 +9,8 @@ import { safePath, topSlug } from './files.js';
 export function createWriteTool(config: GitlabConfig) {
   return defineTool({
     name: 'gitlab_write',
-    // Payée à chaque conversation : la méthode (quand confirmer, que faire d'un refus) vit dans skills/publier.
+    // Payée à chaque conversation : la méthode (quand confirmer, que faire d'un refus) vit dans un skill
+    // (docs/exemple-skill-publier.md).
     description: 'Pour publier des fichiers en un commit déployé par la CI. ' +
       'Renvoie l\'URL, ou un refus si un fichier existe.',
     inputSchema: {

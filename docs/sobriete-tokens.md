@@ -27,7 +27,7 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 | résultat | 4 000 caractères par défaut (`maxResultChars`) ; au-delà le runner tronque : `[… tronqué, N caractères sur M]`, journalisé `truncated:true` |
 | erreur d'API amont | 300 caractères, sans HTML ni jeton (`cleanUpstreamError`) |
 
-- La **méthode** (quand confirmer, que faire d'un refus) va dans un skill (`skills/publier/SKILL.md`), pas dans
+- La **méthode** (quand confirmer, que faire d'un refus) va dans un skill ([exemple](exemple-skill-publier.md)), pas dans
   la description : le skill n'est chargé que quand il sert.
 - `tools/list` n'envoie ni `"$schema"` ni `execution` par défaut (`toDefinition` dans `runner.ts`).
 - Résultats actuels : `audit_recent` une ligne par appel (10 par défaut, 50 au plus) ;

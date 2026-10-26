@@ -1,3 +1,17 @@
+# Exemple de skill Claude : publier
+
+Ce fichier n'est pas lu par le serveur. C'est un exemple de **skill** à installer côté Claude (claude.ai, Claude Code)
+pour les personnes qui publient avec le groupe `gitlab`.
+
+Pourquoi un skill : la définition de chaque outil est payée dans chaque conversation (voir
+[Sobriété en tokens](sobriete-tokens.md)), alors un outil dit seulement *quand* l'utiliser et *ce qu'il renvoie*. La
+**méthode** (quand confirmer, que faire d'un refus, comment se servir d'un lien de dépôt) va dans un skill, que
+Claude ne charge que quand il sert.
+
+Pour l'installer : créer un skill nommé `publier` et y coller le contenu ci-dessous comme `SKILL.md`. Remplacer
+`demo.example.com` par l'adresse réelle de l'espace de publication.
+
+````markdown
 ---
 name: publier
 description: Publie, met à jour ou retrouve des pages HTML sur un espace de publication statique déployé par la CI d'un dépôt GitLab (ex. demo.example.com), via les outils gitlab_read, gitlab_edit, gitlab_write et gitlab_upload_link du connecteur mcp-maison. À utiliser quand l'utilisateur demande de « mettre en ligne », « publier », « déployer », « modifier la page en ligne », « ajouter une image, un logo ou un PDF », « retrouver une démo » ou « partager un lien ».
@@ -92,3 +106,4 @@ photo de l'usine », « joins la plaquette »), ne pas essayer de les recopier :
   renommant le fichier : le signaler.
 - `GitLab commit 4xx` : rapporter le message (droits du token, branche protégée) sans boucler.
 - Connecteur indisponible ou 401 : reconnecter le connecteur dans les réglages de Claude.
+````

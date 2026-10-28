@@ -23,7 +23,7 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 | description d'un paramètre (`describe()`) | 90 caractères |
 | paramètres | 6 au plus par outil |
 | `tools/list` complet (core + gitlab), en JSON | moins de 4 000 caractères, **temporairement** (3 000 jusqu'à #5) : le temps de la veille sur le chargement à la demande, [issue #6](https://github.com/ldesfontaine/mcp-maison/issues/6). Aujourd'hui 2 978 avec 4 outils gitlab ; 2 994 avec 3 ; 2 802 avec 2, contre 3 892 au départ |
-| `tools/list` d'un groupe, en JSON | 3 000 caractères au plus (`opencloud` : 11 outils, 2 992) |
+| `tools/list` d'un groupe, en JSON | 3 700 caractères au plus (`opencloud` : 13 outils, 3 630 ; plafond porté à 3 700, **temporairement**, issue [#6](https://github.com/ldesfontaine/mcp-maison/issues/6), 3 000 avant) |
 | résultat | 4 000 caractères par défaut (`maxResultChars`) ; au-delà le runner tronque : `[… tronqué, N caractères sur M]`, journalisé `truncated:true` |
 | erreur d'API amont | 300 caractères, sans HTML ni jeton (`cleanUpstreamError`) |
 
@@ -45,8 +45,8 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 - Place faite à `gitlab_upload_link` : `title` retiré là où le nom et la description suffisent (`audit_recent`,
   `gitlab_read`, `gitlab_edit`, `gitlab_write`), filtres d'`audit_recent` sans `describe` ni bornes publiées
   (`refine`), descriptions resserrées.
-- `opencloud_*` : liste et fiche dans un même outil (`id` optionnel), 11 outils au lieu de 21 ; champs utiles
-  seulement, sans `null` ni vide, instants à la seconde ; listes bornées à 100 avec `total` ; journal d'un conteneur
+- `opencloud_*` : liste et fiche dans un même outil (`id` optionnel), 13 outils (`opencloud_proxmox`, `opencloud_firewalls` : plusieurs routes par outil, via `view`) ; champs utiles
+  seulement, sans `null` ni vide, instants à la seconde ; listes bornées à 100 avec `total` ; règles, baux et VM bornés à 7 000 caractères (100 éléments) avec `total` ; journal d'un conteneur
   borné à 12 000 caractères en gardant la fin. Bornes des identifiants (`refine`) hors du schéma publié.
 - `annotations` justes sur chaque outil : `readOnlyHint` et `openWorldHint: false` pour ce qui ne touche que le
   serveur ; `destructiveHint` / `idempotentHint` pour ce qui écrit. Claude s'en sert pour confirmer ou relancer.

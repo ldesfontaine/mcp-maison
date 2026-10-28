@@ -77,7 +77,7 @@ est écrite une fois dans les logs (avec sa position). Corriger le fichier suffi
 | `core:audit` | `audit_recent`, `GET /audit` |
 | `gitlab:read` | `gitlab_read` (parcourir un dossier, lire un fichier) |
 | `gitlab:write` | `gitlab_edit`, `gitlab_write` (chaque appel accepté fait un commit, donc un déploiement), `gitlab_upload_link` (images, PDF, polices seulement ; revérifiée à l'envoi depuis la page : un droit retiré entre-temps refuse l'envoi) |
-| `opencloud:read` | les 11 outils `opencloud_*` (lecture seule ; `opencloud_container_logs` montre des journaux bruts, qui peuvent contenir un secret) |
+| `opencloud:read` | les 13 outils `opencloud_*` (lecture seule ; `opencloud_container_logs` montre des journaux bruts, qui peuvent contenir un secret ; `opencloud_proxmox` : VM et stockages d'un hôte Proxmox ; `opencloud_firewalls` : pare-feu, règles, interfaces et baux DHCP, sans clé d'API ni empreinte) |
 
 ## Outils visibles, refusés à l'appel
 

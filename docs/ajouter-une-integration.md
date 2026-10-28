@@ -163,5 +163,5 @@ Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
   l'appelant de mcp-maison ; quand une écriture par jeton existera, `details.on_behalf_of` portera la valeur de
   `X-MCP-Maison-User`.
 - Routes lues : celles de `src/tools/opencloud/tools.ts`, dont `/api/session` (la `version` de
-  `opencloud_overview`) et `/api/directory/gaps` (`opencloud_directory`, `view: gaps`). openCloud les rejoue dans
+  `opencloud_overview`), `/api/directory/gaps` (`opencloud_directory`, `view: gaps`), `/api/machines/{id}/proxmox` et `/api/firewalls[/{id}[/rules|interfaces|leases]]`. openCloud les rejoue dans
   `internal/server/api_tokens_contract_test.go` : une route ou un champ lu qui change s'y reporte.

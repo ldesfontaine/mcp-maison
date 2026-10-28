@@ -40,7 +40,7 @@ describe('groupe opencloud', () => {
     vi.restoreAllMocks();
 
     const loaded = await (await fetch(`${mcp.url}/health`)).json();
-    expect(loaded.tools.filter((name: string) => name.startsWith('opencloud_'))).toHaveLength(11);
+    expect(loaded.tools.filter((name: string) => name.startsWith('opencloud_'))).toHaveLength(13);
   });
 
   it('config : « / » final retiré ; délai par défaut 10 s ; jeton exigé', () => {
@@ -179,6 +179,89 @@ describe('groupe opencloud', () => {
     });
     const text = extractText(await callTool(other.url, DEV_TOKENS.lucas, 'opencloud_overview'));
     expect(text).toBe('openCloud refuse le jeton de service (401 unauthorized).');
+    await other.stop();
+  });
+
+  it('proxmox : VM et stockages en Gio, sans jeton ni empreinte ; aucun hôte déclaré = 404 lisible', async () => {
+    const text = extractText(await call('opencloud_proxmox', { id: 'pve' }));
+    expect(lastRequest().path).toBe('/api/machines/pve/proxmox');
+    expect(text).not.toMatch(/token_id|lecteur@pve|pin|abababab|api_url|pve\.lan/);
+    expect(JSON.parse(text)).toEqual({
+      node: 'pve', version: '8.2.4', last_read_at: '2026-10-21T08:12:33Z',
+      guests: [
+        { vmid: 200, kind: 'lxc', name: 'dns', status: 'stopped', cpus: 1, mem_gib: 0.5, disk_gib: 8 },
+        { vmid: 5012, kind: 'qemu', name: 'docker1', status: 'running', cpus: 2, mem_gib: 2, disk_gib: 32,
+          machine: 'm-docker1', last_backup_at: '2026-10-21T08:12:33Z', last_backup_gib: 0.23 }
+      ],
+      storages: [{ name: 'local', type: 'dir', total_gib: 931.32, used_gib: 372.53, avail_gib: 558.79,
+        content: ['iso', 'backup'], active: true }]
+    });
+    const missing = await call('opencloud_proxmox', { id: 'sans-hote' });
+    expect(missing.isError).toBe(true);
+    expect(extractText(missing)).toBe('openCloud 404 : not_found.');
+    expect(extractText(await call('opencloud_proxmox', { id: '..' }))).toBe('id invalide : ..');
+    expect(await mcp.audit.listRecent({ tool: 'opencloud_proxmox' })).toMatchObject([
+      { args: { id: '..' } }, { args: { id: 'sans-hote' } }, { args: { id: 'pve' } }]);
+  });
+
+  it('pare-feu : liste et fiche sans clé ni empreinte, les bonnes routes par view', async () => {
+    const listed = extractText(await call('opencloud_firewalls'));
+    expect(lastRequest().path).toBe('/api/firewalls');
+    expect(listed).not.toMatch(/api_key|AbCdEf|pin|abababab|api_url|fw\.lan/);
+    expect(JSON.parse(listed)).toEqual({ firewalls: [{ id: 'fw1', name: 'Bordure', kind: 'opnsense',
+      version: 'OPNsense 25.1.6-amd64', last_read_at: '2026-10-21T08:12:33Z',
+      counts: { interfaces: 2, rules: 2, leases: 2, gateways: 3 } }] });
+
+    const detail = extractText(await call('opencloud_firewalls', { id: 'fw1' }));
+    expect(lastRequest().path).toBe('/api/firewalls/fw1');
+    expect(detail).not.toMatch(/api_key|AbCdEf|pin|abababab/);
+    expect(JSON.parse(detail).gateways[1]).toEqual({ name: 'SANS_SONDE', address: 'dynamic', status: 'online' });
+    expect(JSON.parse(detail).gateways[0]).toMatchObject({ delay_ms: 0, loss_percent: 100 });
+
+    const { rules } = await json('opencloud_firewalls', { id: 'fw1', view: 'règles' });
+    expect(lastRequest().path).toBe('/api/firewalls/fw1/rules');
+    expect(rules[0]).toEqual({ interface: 'lan', action: 'pass', direction: 'in', protocol: 'TCP',
+      source: '192.168.1.0/24', destination: 'any', destination_port: '443', description: 'Web sortant' });
+    expect(rules[1]).toMatchObject({ action: 'block', disabled: true });
+
+    const { interfaces } = await json('opencloud_firewalls', { id: 'fw1', view: 'interfaces' });
+    expect(lastRequest().path).toBe('/api/firewalls/fw1/interfaces');
+    expect(interfaces).toHaveLength(2);
+
+    const { leases } = await json('opencloud_firewalls', { id: 'fw1', view: 'baux' });
+    expect(lastRequest().path).toBe('/api/firewalls/fw1/leases');
+    expect(leases[1]).toEqual({ address: '192.168.1.30', mac: '11:22:33:44:55:66', hostname: 'imprimante',
+      interface: 'LAN', server: 'kea', static: true });
+    expect(await mcp.audit.listRecent({ tool: 'opencloud_firewalls' })).toHaveLength(5);
+  });
+
+  it('pare-feu : beaucoup de règles ou de baux = tronqué, total dit, sous la borne', async () => {
+    const rulesText = extractText(await call('opencloud_firewalls', { id: 'gros', view: 'règles' }));
+    const rules = JSON.parse(rulesText);
+    expect(rules.total).toBe(300);
+    expect(rules.rules.length).toBeLessThan(100);
+    expect(rules.rules[0].destination_port).toBe('1000'); // l'ordre est gardé
+    expect(rules.rules[0].description.length).toBeLessThanOrEqual(120);
+    expect(rulesText.length).toBeLessThanOrEqual(8_000);
+
+    const leasesText = extractText(await call('opencloud_firewalls', { id: 'gros', view: 'baux' }));
+    const leases = JSON.parse(leasesText);
+    expect(leases.total).toBe(500);
+    expect(leases.leases.length).toBeLessThanOrEqual(100);
+    expect(leasesText.length).toBeLessThanOrEqual(8_000);
+  });
+
+  it('pare-feu : view sans id, id inconnu, jeton refusé', async () => {
+    expect(extractText(await call('opencloud_firewalls', { view: 'règles' })))
+      .toBe('règles demande l\'id d\'un pare-feu.');
+    expect(extractText(await call('opencloud_firewalls', { id: 'inconnu' }))).toBe('openCloud 404 : not_found.');
+    const other = await startMcp({
+      TOOL_GROUPS: 'opencloud', OPENCLOUD_URL: service.url, OPENCLOUD_TOKEN: 'k'.repeat(20)
+    });
+    for (const [name, args] of [['opencloud_firewalls', {}], ['opencloud_proxmox', { id: 'pve' }]] as const) {
+      expect(extractText(await callTool(other.url, DEV_TOKENS.lucas, name, args)))
+        .toBe('openCloud refuse le jeton de service (401 unauthorized).');
+    }
     await other.stop();
   });
 

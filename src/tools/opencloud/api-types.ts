@@ -129,3 +129,43 @@ export interface Actions {
     requested_at: string; finished_at: Time; params: unknown; output: { line: string }[];
   }[];
 }
+
+// GET /api/machines/{id}/proxmox (api_proxmox.go) ; non lus : token_id, pin, api_url, verified_at.
+export interface Proxmox {
+  node: string; version: string; last_read_at: Time; last_error: string;
+  guests: {
+    vmid: number; kind: string; name: string; status: string; template: boolean; node: string; cpus: number;
+    max_memory: number; max_disk: number; linked_machine_id: string | null; last_backup_at: Time;
+    last_backup_bytes: number;
+  }[];
+  storages: {
+    node: string; name: string; type: string; total: number; used: number; avail: number; content: string[];
+    active: boolean;
+  }[];
+}
+
+// api_firewalls.go. Non lus : api_url, api_key et pin (un jeton d'API ne les voit pas), is_pinned, verified_at.
+export interface Firewall {
+  id: string; name: string; kind: string; version: string; last_read_at: Time; last_error: string;
+  counts: { interfaces: number; rules: number; leases: number; gateways: number };
+}
+export interface Firewalls { firewalls: Firewall[] } // + limit, non lu
+export interface FirewallDetail extends Firewall {
+  gateways: { name: string; address: string; status: string; delay_ms: number | null; loss_percent: number | null }[];
+}
+interface FirewallReading { id: string; name: string; last_read_at: Time; last_error: string }
+export interface FirewallRules extends FirewallReading {
+  rules: {
+    interface: string; action: string; direction: string; protocol: string; source: string; source_port: string;
+    destination: string; destination_port: string; description: string; is_enabled: boolean;
+  }[];
+}
+export interface FirewallInterfaces extends FirewallReading {
+  interfaces: { name: string; device: string; role: string; address: string; status: string }[];
+}
+export interface FirewallLeases extends FirewallReading {
+  leases: {
+    address: string; mac: string; hostname: string; interface: string; server: string; is_static: boolean;
+    expires_at: Time;
+  }[];
+}

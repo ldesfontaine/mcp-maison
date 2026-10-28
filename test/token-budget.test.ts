@@ -12,7 +12,7 @@ const GITLAB_TOOLS = ['gitlab_read', 'gitlab_edit', 'gitlab_write', 'gitlab_uplo
 const OPENCLOUD_TOOLS = [
   'opencloud_overview', 'opencloud_machines', 'opencloud_containers', 'opencloud_container_logs',
   'opencloud_directory', 'opencloud_jobs', 'opencloud_probes', 'opencloud_status', 'opencloud_alerts',
-  'opencloud_audit', 'opencloud_actions'
+  'opencloud_audit', 'opencloud_actions', 'opencloud_proxmox', 'opencloud_firewalls'
 ];
 
 let mcp: Awaited<ReturnType<typeof startMcp>>;

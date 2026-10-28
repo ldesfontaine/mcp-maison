@@ -87,7 +87,8 @@ X-MCP-Maison-User-Name: <nom affiché : name, sinon username, sinon id>
 ```
 
 - Jamais un secret, jamais le jeton de l'IdP, ni courriel ni groupes. Valeurs nettoyées pour un en-tête HTTP :
-  ASCII imprimable (accents retirés), sans retour à la ligne, 200 caractères au plus.
+  ASCII imprimable (accents retirés), sans retour à la ligne, 200 caractères au plus (100 pour `opencloud_act`, la
+  limite du contrat côté openCloud).
 - **Le service aval peut journaliser `on_behalf_of`** (ex. recopier `X-MCP-Maison-User` dans le détail de son
   événement d'audit quand l'acteur est le jeton de service). **Il fait confiance au jeton de service, pas à
   l'en-tête** : n'importe quel détenteur du jeton peut écrire ces en-têtes. Ils rendent le journal lisible, ils
@@ -165,3 +166,26 @@ Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
 - Routes lues : celles de `src/tools/opencloud/tools.ts`, dont `/api/session` (la `version` de
   `opencloud_overview`), `/api/directory/gaps` (`opencloud_directory`, `view: gaps`), `/api/machines/{id}/proxmox` et `/api/firewalls[/{id}[/rules|interfaces|leases]]`. openCloud les rejoue dans
   `internal/server/api_tokens_contract_test.go` : une route ou un champ lu qui change s'y reporte.
+
+## Le groupe `opencloud_act`
+
+Agir dans openCloud. `TOOL_GROUPS=core,opencloud_act`, permission `opencloud:act` (le groupe déclare
+`permissionPrefix: 'opencloud'` : son nom de groupe et son préfixe de permission diffèrent).
+
+- **Deux outils, aucun verbe écrit en dur.** `opencloud_verbs` lit `GET /api/token/verbs` et rend les verbes que le
+  jeton porte (identifiant, résumé, paramètres, champs du corps, inverse). `opencloud_act` prend `verb` et `args`,
+  relit les verbes (cache de 30 s, vidé sur un `403 api_token.verb_forbidden`, relu une fois si le verbe est
+  inconnu), refuse localement un verbe inconnu en listant les existants, construit la requête depuis
+  `method`/`path`/`params`/`body` du contrat, et rend `{verb, run_id, state, reverse_with}` et « pour défaire : … ».
+  Un verbe ajouté plus tard par openCloud marche sans toucher mcp-maison.
+- **Valeurs de chemin** : identifiants simples seulement (`[A-Za-z0-9._-]`, 64 au plus, premier caractère
+  alphanumérique) ; jamais `/`, `..`, `?`, `%`. Un argument que le verbe ne déclare pas est refusé.
+- **Erreurs** : `403 verb_forbidden` (« ce jeton ne porte pas ce verbe »), `429` avec `Retry-After`, `409` et `422` avec la
+  clé de refus d'openCloud telle quelle. Un délai dépassé dit que l'action a peut-être été exécutée.
+- **Journal** : le verbe, les identifiants de chemin, `run_id` et `state` ; jamais le corps.
+- **Pourquoi un jeton à part** (`OPENCLOUD_ACT_TOKEN`, distinct de `OPENCLOUD_TOKEN`) : on peut donner
+  `opencloud:read` sans `opencloud:act`, et le jeton d'écriture ne sert jamais à lire. Deux droits, deux jetons.
+- **Créer le jeton, côté openCloud** : Paramètres › Jetons d'API, nouveau jeton, portée **écriture**, cocher seulement les
+  verbes voulus (le jeton ne voit et ne peut que ceux-là), copier le jeton dans `OPENCLOUD_ACT_TOKEN`.
+  `OPENCLOUD_ACT_URL` peut valoir `OPENCLOUD_URL` ; mêmes règles d'hôte et de `http://`.
+- Le journal d'openCloud nomme le jeton d'API ; `X-MCP-Maison-User` y dit pour qui (« pour qui »).

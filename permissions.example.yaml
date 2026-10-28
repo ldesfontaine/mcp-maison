@@ -19,3 +19,6 @@ groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/
     - core:audit     # audit_recent et GET /audit
   exemple/exploitation:
     - opencloud:read # opencloud_* : machines, conteneurs, journaux de conteneurs, sondes, alertes, audit
+  exemple/astreinte: # peu de monde ; jamais dans everyone. Pas de "opencloud:*" : il donnerait aussi act
+    - opencloud:read
+    - opencloud:act  # opencloud_verbs, opencloud_act : exécuter les verbes du jeton d'écriture (groupe opencloud_act)

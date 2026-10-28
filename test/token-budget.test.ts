@@ -4,8 +4,9 @@ import { DEV_TOKENS, mcpClient, startMcp } from './helpers.js';
 
 // La définition de chaque outil est envoyée à Claude dans chaque conversation : voir docs/sobriete-tokens.md.
 // total : 4 000 le temps de la veille sur le chargement à la demande (issue #6), 3 000 avant.
+// group : 3 700 pour la même raison (issue #6, temporaire, en attendant le chargement à la demande), 3 000 avant.
 const BUDGET = {
-  description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 4_000, group: 3_000
+  description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 4_000, group: 3_700
 };
 const GITLAB_TOOLS = ['gitlab_read', 'gitlab_edit', 'gitlab_write', 'gitlab_upload_link'];
 const OPENCLOUD_TOOLS = [

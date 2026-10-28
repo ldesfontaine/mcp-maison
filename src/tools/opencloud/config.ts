@@ -14,7 +14,7 @@ function isPrivateIPv4(host: string): boolean {
 
 // Le jeton part dans chaque requête : HTTPS, sauf en boucle locale (poste de dev, tests) ou vers une IP privée
 // (même hôte ou réseau local, ex. mcp-maison en conteneur et openCloud sur l'hôte). Un nom ou une IP publique : HTTPS.
-const isSafeUrl = (value: string) => {
+export const isSafeUrl = (value: string) => {
   const url = new URL(value);
   if (url.protocol === 'https:') return true;
   return url.protocol === 'http:' && (LOOPBACK.includes(url.hostname) || isPrivateIPv4(url.hostname));

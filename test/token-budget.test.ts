@@ -9,6 +9,7 @@ const BUDGET = {
   description: 280, sentences: 2, paramDescription: 90, params: 6, title: 40, total: 4_000, group: 3_700
 };
 const GITLAB_TOOLS = ['gitlab_read', 'gitlab_edit', 'gitlab_write', 'gitlab_upload_link'];
+const OPENCLOUD_ACT_TOOLS = ['opencloud_verbs', 'opencloud_act'];
 const OPENCLOUD_TOOLS = [
   'opencloud_overview', 'opencloud_machines', 'opencloud_containers', 'opencloud_container_logs',
   'opencloud_directory', 'opencloud_jobs', 'opencloud_probes', 'opencloud_status', 'opencloud_alerts',
@@ -21,7 +22,9 @@ let tools: ToolDefinition[];
 beforeAll(async () => {
   // core + gitlab, comme en production, et chaque groupe optionnel
   mcp = await startMcp({
-    TOOL_GROUPS: 'core,gitlab,opencloud', OPENCLOUD_URL: 'https://opencloud.invalid', OPENCLOUD_TOKEN: 'k'.repeat(20)
+    TOOL_GROUPS: 'core,gitlab,opencloud,opencloud_act', OPENCLOUD_URL: 'https://opencloud.invalid',
+    OPENCLOUD_TOKEN: 'k'.repeat(20), OPENCLOUD_ACT_URL: 'https://opencloud.invalid',
+    OPENCLOUD_ACT_TOKEN: 'w'.repeat(20)
   });
   const { client } = await mcpClient(mcp.url, DEV_TOKENS.lucas);
   tools = (await client.listTools()).tools;
@@ -30,7 +33,10 @@ beforeAll(async () => {
 afterAll(() => mcp.stop());
 
 /** Le groupe d'un outil : son préfixe, core sinon. */
-const groupOf = (name: string) => /^(gitlab|opencloud)_/.exec(name)?.[1] ?? 'core';
+const groupOf = (name: string) => {
+  if (OPENCLOUD_ACT_TOOLS.includes(name)) return 'opencloud_act'; // même préfixe que opencloud_*, autre groupe
+  return /^(gitlab|opencloud)_/.exec(name)?.[1] ?? 'core';
+};
 const sizeOf = (list: ToolDefinition[]) => JSON.stringify(list).length;
 
 const countSentences = (text: string) => text.match(/[.!?…](?=\s|$)/g)?.length ?? 0;
@@ -47,7 +53,7 @@ function collectParamDescriptions(schema: unknown, path = ''): [string, string][
 describe('budget de définition des outils', () => {
   it('tous les groupes de production sont mesurés', () => {
     expect(tools.map((tool) => tool.name)).toEqual(
-      ['ping', 'whoami', 'audit_recent', ...GITLAB_TOOLS, ...OPENCLOUD_TOOLS]);
+      ['ping', 'whoami', 'audit_recent', ...GITLAB_TOOLS, ...OPENCLOUD_TOOLS, ...OPENCLOUD_ACT_TOOLS]);
   });
 
   it(`description : ${BUDGET.description} caractères et ${BUDGET.sentences} phrases au plus`, () => {
@@ -74,18 +80,24 @@ describe('budget de définition des outils', () => {
   });
 
   it(`tools/list de production (core + gitlab) tient sous ${BUDGET.total} caractères de JSON`, () => {
-    const production = tools.filter((tool) => groupOf(tool.name) !== 'opencloud');
+    const production = tools.filter((tool) => ['core', 'gitlab'].includes(groupOf(tool.name)));
     const sizes = Object.fromEntries(production.map((tool) => [tool.name, JSON.stringify(tool).length]));
     expect(sizeOf(production), JSON.stringify(sizes)).toBeLessThan(BUDGET.total);
   });
 
   it(`chaque groupe : ${BUDGET.group} caractères de tools/list au plus`, () => {
-    for (const group of ['core', 'gitlab', 'opencloud']) {
+    for (const group of ['core', 'gitlab', 'opencloud', 'opencloud_act']) {
       const members = tools.filter((tool) => groupOf(tool.name) === group);
       const sizes = Object.fromEntries(members.map((tool) => [tool.name, JSON.stringify(tool).length]));
       expect(members.length, group).toBeGreaterThan(0);
       expect(sizeOf(members), `${group} : ${JSON.stringify(sizes)}`).toBeLessThanOrEqual(BUDGET.group);
     }
+  });
+
+  it('opencloud_act : 3 000 caractères au plus, le plafond d\'origine des groupes (hors report #6)', () => {
+    const members = tools.filter((tool) => groupOf(tool.name) === 'opencloud_act');
+    const sizes = Object.fromEntries(members.map((tool) => [tool.name, JSON.stringify(tool).length]));
+    expect(sizeOf(members), JSON.stringify(sizes)).toBeLessThanOrEqual(3_000);
   });
 
   it('annotations justes : Claude s\'en sert pour confirmer, ou pas, et pour relancer, ou pas', () => {
@@ -98,7 +110,10 @@ describe('budget de définition des outils', () => {
       gitlab_write: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
       // Crée un lien sur ce serveur ; c'est la personne qui envoie, depuis la page.
       gitlab_upload_link: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-      ...Object.fromEntries(OPENCLOUD_TOOLS.map((name) => [name, local])) // lectures seules d'openCloud
+      ...Object.fromEntries(OPENCLOUD_TOOLS.map((name) => [name, local])), // lectures seules d'openCloud
+      opencloud_verbs: local, // lit la liste des verbes du jeton d'écriture
+      // Écrit dans openCloud, mais chaque verbe a son inverse, déclaré dans openCloud : jamais destructif d'office.
+      opencloud_act: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
     });
   });
 

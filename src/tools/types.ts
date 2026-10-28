@@ -53,6 +53,8 @@ export interface ToolServices {
 /** Un groupe d'outils activable par TOOL_GROUPS. createTools lève une erreur si sa config manque. */
 export interface ToolGroup {
   name: string;
+  /** Préfixe des permissions de ses outils, si ce n'est pas `name` (ex. opencloud_act : `opencloud:act`). */
+  permissionPrefix?: string;
   envKeys: string[]; // les seules variables que createTools recevra
   createTools(env: Record<string, string>, services: ToolServices): Tool[];
 }

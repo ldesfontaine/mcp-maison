@@ -1,10 +1,11 @@
 import { coreGroup } from './core/index.js';
 import { gitlabGroup } from './gitlab/index.js';
 import { opencloudGroup } from './opencloud/index.js';
+import { opencloudActGroup } from './opencloud-act/index.js';
 import type { Tool, ToolGroup, ToolServices } from './types.js';
 
 /** Les groupes connus. Ajouter une intégration = un dossier + une ligne ici. */
-export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup, opencloudGroup];
+export const AVAILABLE_GROUPS: ToolGroup[] = [coreGroup, gitlabGroup, opencloudGroup, opencloudActGroup];
 
 export interface LoadedTools {
   tools: Tool[];
@@ -33,7 +34,7 @@ export function loadToolGroups(
       skipGroup(loaded, name, `configuration incomplète : ${(error as Error).message}`);
       continue;
     }
-    for (const tool of tools) addTool(loaded.tools, tool, group.name);
+    for (const tool of tools) addTool(loaded.tools, tool, group.permissionPrefix ?? group.name);
   }
   return loaded;
 }
@@ -48,10 +49,10 @@ function skipGroup(loaded: LoadedTools, group: string, reason: string) {
 }
 
 // Erreurs de programmation, pas de configuration : on refuse de démarrer.
-function addTool(tools: Tool[], tool: Tool, groupName: string) {
+function addTool(tools: Tool[], tool: Tool, prefix: string) {
   if (tools.some((existing) => existing.name === tool.name)) throw new Error(`outil en double : ${tool.name}`);
-  if (!tool.permission.startsWith(`${groupName}:`)) {
-    throw new Error(`outil ${tool.name} : permission "${tool.permission}" hors du groupe "${groupName}"`);
+  if (!tool.permission.startsWith(`${prefix}:`)) {
+    throw new Error(`outil ${tool.name} : permission "${tool.permission}" hors du groupe "${prefix}"`);
   }
   tools.push(tool);
 }

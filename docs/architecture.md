@@ -52,7 +52,8 @@ src/tools/slug.ts              SLUG_PATTERN, la seule définition d'un slug
 src/tools/gitlab/files.ts      chemins et extensions acceptés (jamais de fichier caché, jamais hors de GITLAB_ROOT_DIR)
 src/tools/gitlab/upload-link.ts  gitlab_upload_link et le receveur des fichiers déposés (un commit, mêmes règles)
 src/tools/opencloud/           client REST d'openCloud (jeton, délai, Retry-After) et ses lectures filtrées
-src/tools/core|gitlab|opencloud/
+src/tools/opencloud-act/       verbes d'action lus dans openCloud (jeton d'écriture à part), client partagé avec opencloud
+src/tools/core|gitlab|opencloud|opencloud-act/
 ```
 
 ## Connexion (OIDC)

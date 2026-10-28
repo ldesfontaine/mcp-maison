@@ -99,6 +99,7 @@ Le fichier de droits est ensuite relu à chaud.
 | `core` | `ping`, `whoami`, `audit_recent` |
 | `gitlab` | parcourir, lire, modifier et écrire les fichiers d'un dossier d'un dépôt GitLab (`GITLAB_ROOT_DIR`), un commit par écriture, y compris par un lien de dépôt où la personne glisse ses images, PDF ou polices ; le déploiement reste celui de la CI du dépôt, hors du MCP |
 | `opencloud` | lecture de la supervision d'openCloud (machines, conteneurs, sondes, alertes, hôte Proxmox, pare-feu) |
+| `opencloud_act` | agir dans openCloud par les verbes de son jeton d'écriture (`opencloud_verbs`, `opencloud_act`) ; verbes lus dans openCloud, jamais écrits ici ; permission `opencloud:act`, à donner à peu de monde |
 
 ## Mettre à jour
 

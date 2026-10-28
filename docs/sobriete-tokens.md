@@ -48,6 +48,10 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 - `opencloud_*` : liste et fiche dans un même outil (`id` optionnel), 13 outils (`opencloud_proxmox`, `opencloud_firewalls` : plusieurs routes par outil, via `view`) ; champs utiles
   seulement, sans `null` ni vide, instants à la seconde ; listes bornées à 100 avec `total` ; règles, baux et VM bornés à 7 000 caractères (100 éléments) avec `total` ; journal d'un conteneur
   borné à 12 000 caractères en gardant la fin. Bornes des identifiants (`refine`) hors du schéma publié.
+- `opencloud_act` (groupe à part, 2 outils : 305 + 593 = 901 caractères de `tools/list`, plafond 3 000) : les verbes ne sont
+  pas dans les définitions mais lus dans openCloud par `opencloud_verbs` (7 000 caractères au plus) ; `opencloud_act` ne
+  rend que `verb`, `run_id`, `state`, `reverse_with`. Le plafond « core + gitlab » ne compte pas ce groupe (`groupOf`
+  du test de budget range `opencloud_verbs` et `opencloud_act` à part, malgré leur préfixe).
 - `annotations` justes sur chaque outil : `readOnlyHint` et `openWorldHint: false` pour ce qui ne touche que le
   serveur ; `destructiveHint` / `idempotentHint` pour ce qui écrit. Claude s'en sert pour confirmer ou relancer.
 

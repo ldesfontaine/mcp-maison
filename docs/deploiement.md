@@ -142,6 +142,8 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `OPENCLOUD_URL` | | Groupe opencloud : l'instance, https (http seulement en boucle locale ou vers une IP privée 10/8, 172.16/12, 192.168/16) |
 | `OPENCLOUD_TOKEN` | | Jeton d'API d'openCloud, portée `read` |
 | `OPENCLOUD_TIMEOUT_MS` | 10000 | Délai d'un appel à openCloud |
+| `OPENCLOUD_ACT_URL` | | Groupe opencloud_act : l'instance, mêmes règles que `OPENCLOUD_URL` (peut en avoir la valeur) |
+| `OPENCLOUD_ACT_TOKEN` | | Jeton d'API d'openCloud, portée `write`, 20 caractères au moins ; distinct du jeton de lecture |
 
 Une variable vide compte comme absente. Une config du cœur invalide arrête le serveur avec la liste de
 ce qui ne va pas (noms des variables, jamais leurs valeurs). Une config de groupe incomplète ignore

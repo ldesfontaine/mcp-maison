@@ -5,8 +5,10 @@ import { AuditLog } from './audit/log.js';
 import { createAuditHandler } from './audit/routes.js';
 import { loadAuthorizer } from './authorization/permissions-file.js';
 import { dropEmptyValues, parseConfig, type Config } from './config.js';
+import { limitAuthFailures } from './identity/auth-failures.js';
 import { createBearerVerifier } from './identity/dev-tokens.js';
 import { mountOAuth } from './identity/oauth/routes.js';
+import { ServiceAccounts } from './identity/service-accounts.js';
 import { createMcpSessions } from './mcp-sessions.js';
 import { loadToolGroups } from './tools/registry.js';
 import { buildMcpServer } from './tools/runner.js';
@@ -16,7 +18,9 @@ import { VERSION } from './version.js';
 
 /** Les moyens d'identification actifs, pour /health et le message de démarrage. */
 export function describeIdentity(config: Config): string[] {
-  return [...(config.oidc ? ['oidc'] : []), ...(config.devUsers.size ? ['dev-tokens'] : [])];
+  return [
+    ...(config.oidc ? ['oidc'] : []), ...(config.devUsers.size ? ['dev-tokens'] : []), 'service-accounts'
+  ];
 }
 
 /**
@@ -52,15 +56,19 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   if (config.allowedHosts.length) app.use(hostHeaderValidation(config.allowedHosts));
 
   const oauth = config.oidc ? mountOAuth(app, config.oidc, config.DATABASE_PATH) : undefined;
+  // Comptes de service (cli.ts) : relus dans la base à chaque appel, une révocation vaut dès le suivant.
+  const serviceAccounts = new ServiceAccounts(config.DATABASE_PATH);
   const bearer = requireBearerAuth({
-    verifier: createBearerVerifier(config.devUsers, oauth?.server, oauth?.resource),
+    verifier: createBearerVerifier(config.devUsers, oauth?.server, oauth?.resource, serviceAccounts),
     resourceMetadataUrl: oauth?.resourceMetadataUrl,
     expectedResource: oauth?.resource
   });
-  app.get('/audit', bearer, createAuditHandler(audit, authorizer));
+  const authFailures = limitAuthFailures();
+  app.get('/audit', authFailures, bearer, createAuditHandler(audit, authorizer));
   // Auth AVANT la lecture du corps : un anonyme ne fait pas parser 10 Mo.
   const allowedOrigins = config.oidc ? [new URL(config.oidc.publicUrl).origin] : [];
-  app.use('/mcp', rejectForeignOrigin(allowedOrigins), bearer, express.json({ limit: config.MAX_BODY }), mcp.router);
+  app.use('/mcp', rejectForeignOrigin(allowedOrigins), authFailures, bearer,
+    express.json({ limit: config.MAX_BODY }), mcp.router);
   // Seulement si un groupe chargé reçoit des fichiers (gitlab) : sinon, ni route, ni base ouverte pour rien.
   const closeUploads = uploads.hasReceivers
     ? mountUploads(app, {
@@ -74,6 +82,7 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
   const closeStorage = () => {
     closeUploads?.();
     oauth?.close();
+    serviceAccounts.close();
   };
   const close = async () => {
     await closeSessions();

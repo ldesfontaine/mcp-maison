@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getUserFromAuth } from './identity/user.js';
+import { getIdentityKey, getUserFromAuth } from './identity/user.js';
 
 const IDLE_MS = 30 * 60_000;
 
@@ -35,7 +35,7 @@ export function createMcpSessions(newServer: () => McpServer, limits: SessionLim
   const findOwnSession = (req: Request): Session | undefined => {
     const id = req.headers['mcp-session-id'];
     const session = typeof id === 'string' ? sessions.get(id) : undefined;
-    if (!session || session.userId !== getUserFromAuth(req.auth).id) return undefined;
+    if (!session || session.userId !== getIdentityKey(getUserFromAuth(req.auth))) return undefined;
     session.lastActive = Date.now();
     return session;
   };
@@ -49,7 +49,7 @@ export function createMcpSessions(newServer: () => McpServer, limits: SessionLim
   };
 
   const openSession = async (req: Request, res: Response) => {
-    const userId = getUserFromAuth(req.auth).id;
+    const userId = getIdentityKey(getUserFromAuth(req.auth));
     await evictOldestSessionOf(userId);
     const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),

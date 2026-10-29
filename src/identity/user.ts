@@ -6,7 +6,8 @@ export interface User {
   username?: string; // preferred_username OIDC : lisible, mais modifiable par la personne chez certains IdP
   name?: string;
   email?: string;
-  provider: 'oidc' | 'dev-token';
+  provider: 'oidc' | 'dev-token' | 'service';
+  kind?: 'person' | 'agent'; // absent = person ; un compte de service est toujours un agent
   groups?: string[]; // groupes de l'IdP, utilisés par permissions.yaml
 }
 
@@ -19,3 +20,11 @@ export function getUserFromAuth(info?: AuthInfo): User {
 
 /** Ce qu'on affiche (logs, messages, commits) : le username s'il existe, sinon l'identifiant. */
 export const getDisplayId = (user: User) => user.username ?? user.id;
+
+/** Les comptes de service ont leur propre espace de noms : leur id ne se confond jamais avec celui d'une personne. */
+export const isServiceAccount = (user: User) => user.provider === 'service';
+
+/** Clé d'identité qui distingue les genres (droits, jeton d'écriture, sessions) : `service:raph`, sinon l'id. */
+export const getIdentityKey = (user: User) => (isServiceAccount(user) ? `service:${user.id}` : user.id);
+
+export const getKind = (user: User): 'person' | 'agent' => (isServiceAccount(user) ? 'agent' : user.kind ?? 'person');

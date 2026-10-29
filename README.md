@@ -99,7 +99,14 @@ Le fichier de droits est ensuite relu à chaud.
 | `core` | `ping`, `whoami`, `audit_recent` |
 | `gitlab` | parcourir, lire, modifier et écrire les fichiers d'un dossier d'un dépôt GitLab (`GITLAB_ROOT_DIR`), un commit par écriture, y compris par un lien de dépôt où la personne glisse ses images, PDF ou polices ; le déploiement reste celui de la CI du dépôt, hors du MCP |
 | `opencloud` | lecture de la supervision d'openCloud (machines, conteneurs, sondes, alertes, hôte Proxmox, pare-feu) |
-| `opencloud_act` | agir dans openCloud par les verbes de son jeton d'écriture (`opencloud_verbs`, `opencloud_act`) ; verbes lus dans openCloud, jamais écrits ici ; permission `opencloud:act`, à donner à peu de monde |
+| `opencloud_act` | agir dans openCloud par les verbes de son jeton d'écriture, un jeton par identité (`opencloud_verbs`, `opencloud_act`) ; verbes lus dans openCloud, jamais écrits ici ; permission `opencloud:act`, à donner à peu de monde |
+
+## Un agent sans navigateur
+
+Un agent (ex. un assistant qui tourne sur un serveur) agit sous sa propre identité par un **compte de service** :
+`node dist/cli.js service-account create <id> --token-only > fichier-de-secrets` (le jeton ne s'affiche jamais à
+l'écran), ses droits sont la clé `service:<id>` de `permissions.yaml`. Voir [Identité](docs/identite.md) et la
+procédure dans [Déploiement](docs/deploiement.md).
 
 ## Mettre à jour
 

@@ -143,17 +143,64 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `OPENCLOUD_TOKEN` | | Jeton d'API d'openCloud, portée `read` |
 | `OPENCLOUD_TIMEOUT_MS` | 10000 | Délai d'un appel à openCloud |
 | `OPENCLOUD_ACT_URL` | | Groupe opencloud_act : l'instance, mêmes règles que `OPENCLOUD_URL` (peut en avoir la valeur) |
-| `OPENCLOUD_ACT_TOKEN` | | Jeton d'API d'openCloud, portée `write`, 20 caractères au moins ; distinct du jeton de lecture |
+| `OPENCLOUD_ACT_TOKENS_FILE` | | Fichier JSON `{ "service:raph": "…", "<sub>": "…", "default": "…" }` : un jeton d'API openCloud (portée `write`) par identité ; droits `600` exigés (voir plus bas) |
+| `OPENCLOUD_ACT_TOKEN` | | Ancien réglage, un seul jeton pour tous (utilisé comme `default`, avec un avertissement) ; ne pas le combiner avec le fichier |
 
 Une variable vide compte comme absente. Une config du cœur invalide arrête le serveur avec la liste de
 ce qui ne va pas (noms des variables, jamais leurs valeurs). Une config de groupe incomplète ignore
 seulement ce groupe.
 
+## Agents sans navigateur : compte de service et jeton d'écriture par identité
+
+Procédure pour un agent `raph` qui agit dans openCloud sous sa propre identité. **Aucun jeton n'est affiché** : ils
+passent de la commande au fichier, ou du presse-papiers au fichier par une saisie muette.
+
+1. **Créer le compte et poser son jeton** dans le fichier de secrets de l'agent (la commande tourne dans le
+   conteneur, la redirection sur l'hôte ; `-T` : pas de terminal, sinon la commande refuse) :
+   ```bash
+   umask 077
+   docker compose exec -T mcp node dist/cli.js service-account create raph --token-only --expires-in-days 365 \
+     > /chemin/secrets-raph/mcp-maison.token
+   docker compose exec -T mcp node dist/cli.js service-account list     # échéance, dernier usage, jamais le jeton
+   ```
+   Hors Docker : `node dist/cli.js …` avec le même `DATABASE_PATH` que le serveur. Perdu : `revoke`, puis `create`.
+2. **Donner ses droits** : dans `permissions.yaml`, `users: { service:raph: [core:whoami, opencloud:read, opencloud:act] }`
+   (`droits.md`). Pas de redémarrage.
+3. **Créer le jeton d'écriture openCloud de raph** : côté openCloud, Paramètres › Jetons d'API, nouveau jeton, portée
+   **écriture**, nom `raph`, cocher les seuls verbes voulus pour lui. openCloud ne montre le jeton qu'une fois : le
+   coller dans la saisie muette ci-dessous. Un jeton par identité (Lucas, un autre agent…) : c'est ce qui fait dire
+   au journal d'openCloud « jeton raph · pour : agent:raph », et qui permet de révoquer l'un sans l'autre.
+4. **L'ajouter au fichier de jetons** (`config/opencloud-act-tokens.json`, `600`, propriétaire l'uid du conteneur, 1000
+   avec l'image fournie) sans l'afficher :
+   ```bash
+   umask 077
+   f=config/opencloud-act-tokens.json
+   [ -f "$f" ] || echo '{}' > "$f"
+   read -rsp 'Jeton openCloud de raph : ' T; echo
+   jq --arg t "$T" '. + {"service:raph": $t}' "$f" > "$f.new" && mv "$f.new" "$f"; unset T
+   sudo chown 1000:1000 "$f"     # lisible par le conteneur, par lui seul
+   ```
+   Entrées : `service:<id>` pour un agent, le `sub` OIDC (celui de `whoami`) pour une personne, `default` pour les
+   autres. Sans entrée pour l'identité **et** sans `default`, l'appel est refusé (« aucun jeton d'écriture pour cette
+   identité ») : jamais de repli sur le jeton d'un autre.
+5. **Brancher** dans `.env` : `TOOL_GROUPS=core,gitlab,opencloud_act`, `OPENCLOUD_ACT_URL=…`,
+   `OPENCLOUD_ACT_TOKENS_FILE=/app/config/opencloud-act-tokens.json` ; monter le **dossier** `./config:/app/config:ro`
+   (voir `docker-compose.yml`). Retirer `OPENCLOUD_ACT_TOKEN` s'il existait.
+
+Le fichier de jetons est refusé s'il est lisible par le groupe ou les autres (`chmod 600`), mal formé (JSON, objet
+de chaînes de 20 caractères au moins, pas de valeur d'exemple) ou illisible : le groupe `opencloud_act` n'est alors pas
+chargé, avec la raison (jamais une valeur) dans les logs et `skippedGroups` de `/health`. Une fois chargé, il est
+**relu à chaud** dès qu'il change ; s'il devient invalide, les jetons précédents restent en vigueur et l'erreur est
+écrite une fois. Le cache des verbes (30 s) est par jeton.
+
+Un compte de service qu'on retire : `service-account revoke raph`, puis supprimer son entrée du fichier et son
+jeton côté openCloud.
+
 ## Sauvegarde
 
 | Fichier | Contenu | Si on le perd |
 | --- | --- | --- |
-| `data/mcp-maison.db` (+ `-wal`) | Clients DCR, jetons et liens de dépôt hachés | Chacun reclique *Connect* dans Claude ; les liens de dépôt en cours ne marchent plus. Rien d'autre |
+| `data/mcp-maison.db` (+ `-wal`) | Clients DCR, jetons, liens de dépôt et comptes de service (hachés) | Chacun reclique *Connect* dans Claude ; les liens de dépôt en cours ne marchent plus ; les comptes de service sont à recréer (nouveaux jetons à poser chez les agents) |
 | `data/audit.jsonl` | Qui a fait quoi | L'historique |
 | `.env`, `permissions.yaml` | Config et secrets | À refaire |
 

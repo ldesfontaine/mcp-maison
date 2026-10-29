@@ -57,7 +57,28 @@ groups:                   # par groupe de l'IdP (GitLab : chemin complet)
   autre. Une entrée par **sub** (l'`id` que montre `whoami`) est sûre mais illisible : à commenter.
 - Les droits **s'additionnent** : `everyone` + `users.<id>` + chaque groupe de la personne. Pas de refus explicite.
 - `*` donne tout ; `gitlab:*` donne toutes les actions du groupe `gitlab`.
+- **Attention : `*` et `opencloud:*` incluent `opencloud:act`**, donc l'action sur de vraies machines. Pour donner la
+  lecture d'openCloud, écrire `opencloud:read`, jamais `opencloud:*`. `opencloud:act` ne va jamais dans `everyone`.
 - Une entrée mal formée au démarrage bloque le démarrage avec sa position (`users.lucas.0`).
+
+## Les comptes de service (agents)
+
+Un agent sans navigateur (`identite.md`) a sa clé `service:<id>` sous `users:` :
+
+```yaml
+users:
+  service:raph: [core:whoami, opencloud:read, opencloud:act]   # minimum utile, rien d'autre
+```
+
+- **Sa clé, et elle seule.** Un compte de service ne reçoit jamais `users.raph`, ni `users.<username>`, ni de groupe
+  (il n'en a pas). Il reçoit `everyone` comme tout le monde : ne pas y mettre ce qu'un agent ne doit pas avoir.
+- **Une personne ne reçoit jamais une clé `service:…`**, même si son `sub` ou son `preferred_username` s'écrit
+  `service:raph` (l'IdP ne nous protège pas de ça) : le préfixe `service:` est réservé aux comptes de service, ignoré
+  dans les clés d'une personne. Un test le vérifie.
+- La forme `service:<id>` (`^service:[a-z][a-z0-9-]{1,31}$`) est vérifiée ; une clé `service:` mal écrite bloque le
+  démarrage avec sa position, comme toute entrée invalide.
+- `opencloud:act` à un agent : à bien peser, il agit seul. Son jeton d'écriture openCloud est le sien
+  (`deploiement.md`) et ne porte que les verbes cochés pour lui.
 
 ## Modifier sans redémarrer
 
@@ -77,7 +98,7 @@ est écrite une fois dans les logs (avec sa position). Corriger le fichier suffi
 | `core:audit` | `audit_recent`, `GET /audit` |
 | `gitlab:read` | `gitlab_read` (parcourir un dossier, lire un fichier) |
 | `gitlab:write` | `gitlab_edit`, `gitlab_write` (chaque appel accepté fait un commit, donc un déploiement), `gitlab_upload_link` (images, PDF, polices seulement ; revérifiée à l'envoi depuis la page : un droit retiré entre-temps refuse l'envoi) |
-| `opencloud:act` | `opencloud_verbs`, `opencloud_act` (groupe `opencloud_act` : exécuter les verbes d'action que porte le jeton d'écriture, avec leur inverse). **Peu de monde** : chaque appel agit sur de vraies machines ; le journal d'openCloud nomme le jeton, celui de mcp-maison nomme la personne. Jamais dans `everyone`. Attention : `opencloud:*` et `*` la donnent aussi |
+| `opencloud:act` | `opencloud_verbs`, `opencloud_act` (groupe `opencloud_act` : exécuter les verbes d'action que porte le jeton d'écriture, avec leur inverse). **Peu de monde** : chaque appel agit sur de vraies machines ; chaque identité a son propre jeton d'écriture (`OPENCLOUD_ACT_TOKENS_FILE`), le journal d'openCloud nomme ce jeton et `X-MCP-Maison-User` (`agent:raph`), celui de mcp-maison nomme l'identité. Jamais dans `everyone`. Attention : `opencloud:*` et `*` la donnent aussi |
 | `opencloud:read` | les 13 outils `opencloud_*` (lecture seule ; `opencloud_container_logs` montre des journaux bruts, qui peuvent contenir un secret ; `opencloud_proxmox` : VM et stockages d'un hôte Proxmox ; `opencloud_firewalls` : pare-feu, règles, interfaces et baux DHCP, sans clé d'API ni empreinte) |
 
 ## Outils visibles, refusés à l'appel

@@ -5,7 +5,7 @@ Il répond à trois questions, chacune dans son dossier :
 
 | Question | Dossier | Ce qu'il fait |
 | --- | --- | --- |
-| Qui appelle ? | `src/identity/` | Serveur OAuth 2.1 qui délègue la connexion à un IdP OIDC (`oauth/`) ; jetons de dev hors production |
+| Qui appelle ? | `src/identity/` | Serveur OAuth 2.1 qui délègue la connexion à un IdP OIDC (`oauth/`) ; comptes de service pour les agents ; jetons de dev hors production |
 | Qui peut quoi ? | `src/authorization/` | Interface `Authorizer`, implémentée par `permissions.yaml` (relu à chaud) |
 | Qu'a-t-on fait ? | `src/audit/` | Journal JSON Lines, une ligne par appel, refus compris |
 
@@ -20,7 +20,9 @@ src/config.ts                  variables du cœur, validées (zod)
 src/mcp-sessions.ts            sessions MCP, liées à leur personne ; 500 au plus, 20 par personne (la plus ancienne cède)
 src/identity/
   user.ts                      User, et comment le retrouver dans une requête
-  dev-tokens.ts                AUTH_DEV_TOKENS et le vérificateur Bearer
+  dev-tokens.ts                AUTH_DEV_TOKENS et le vérificateur Bearer (comptes de service, dev, OAuth)
+  service-accounts.ts          comptes de service : jeton mcpsa_ haché en SQLite, révocation, échéance
+  auth-failures.ts             limite des échecs d'authentification par source (429)
   secrets.ts                   empreintes, secrets aléatoires, chiffrement
   oauth/routes.ts              montage du serveur d'autorisation et de /oauth/callback
   oauth/authorization-server.ts  OAuth 2.1 pour Claude : jetons, rotation, révocation
@@ -37,6 +39,7 @@ src/authorization/
   authorizer.ts                l'interface Authorizer, seule connue du reste du code
   rules.ts                     format de permissions.yaml et calcul des droits
   permissions-file.ts          l'Authorizer qui lit (et relit) permissions.yaml
+src/cli.ts, service-account-cli.ts  commande d'administration sur la machine (comptes de service), jamais par HTTP
 src/audit/log.ts, routes.ts    le journal, et GET /audit
 src/version.ts                 VERSION, écrit depuis package.json au build (scripts/version.mjs) ; /health
 src/uploads/
@@ -52,7 +55,7 @@ src/tools/slug.ts              SLUG_PATTERN, la seule définition d'un slug
 src/tools/gitlab/files.ts      chemins et extensions acceptés (jamais de fichier caché, jamais hors de GITLAB_ROOT_DIR)
 src/tools/gitlab/upload-link.ts  gitlab_upload_link et le receveur des fichiers déposés (un commit, mêmes règles)
 src/tools/opencloud/           client REST d'openCloud (jeton, délai, Retry-After) et ses lectures filtrées
-src/tools/opencloud-act/       verbes d'action lus dans openCloud (jeton d'écriture à part), client partagé avec opencloud
+src/tools/opencloud-act/       verbes d'action lus dans openCloud (un jeton d'écriture par identité, tokens.ts), client partagé avec opencloud
 src/tools/core|gitlab|opencloud|opencloud-act/
 ```
 
@@ -86,7 +89,8 @@ sequenceDiagram
     M-->>C: nouveaux jetons (ou invalid_grant si l'IdP refuse)
 ```
 
-Avec `AUTH_DEV_TOKENS` (hors production), rien de tout ça : le Bearer est cherché par son empreinte.
+Avec `AUTH_DEV_TOKENS` (hors production), rien de tout ça : le Bearer est cherché par son empreinte. Idem pour un
+compte de service (`mcpsa_…`, valable aussi en production) : empreinte cherchée en SQLite à chaque appel.
 
 ## Appel d'outil et audit
 

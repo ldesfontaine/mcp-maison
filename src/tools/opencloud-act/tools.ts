@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { getIdentityKey } from '../../identity/user.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { cleanUpstreamError } from '../upstream-error.js';
 import { defineTool, replyError, replyText, type Tool, type ToolContext } from '../types.js';
 import { OpencloudError, OpencloudTimeout, parseRetryAfter, send, type OpencloudCall } from '../opencloud/client.js';
 import { clip, toJson } from '../opencloud/shape.js';
 import type { OpencloudActConfig } from './config.js';
+import type { ResolvedToken } from './tokens.js';
 
 // Actions d'openCloud, par les verbes que porte le jeton d'écriture (GET /api/token/verbs). Aucun verbe n'est écrit
 // ici : l'identifiant, la méthode, le chemin, les paramètres et l'inverse viennent tous d'openCloud. Ce que
@@ -52,8 +54,8 @@ function parseVerbs(payload: unknown): Verb[] {
 const headerValue = (value: string) => value.slice(0, HEADER_MAX).trim();
 
 /** Le refus d'openCloud, en une phrase. 409 et 422 : sa clé de refus telle quelle, c'est une donnée. */
-async function describeRefusal(response: Response, config: OpencloudCall['config'], verb?: string): Promise<string> {
-  const key = cleanUpstreamError(await response.text(), [config.token]) || response.statusText;
+async function describeRefusal(response: Response, token: string, verb?: string): Promise<string> {
+  const key = cleanUpstreamError(await response.text(), [token]) || response.statusText;
   const { status } = response;
   if (status === 403 && key.includes('verb_forbidden')) {
     return `Ce jeton ne porte pas le verbe ${clip(verb ?? '?', 80)} (403 ${key}).`;
@@ -70,16 +72,19 @@ async function describeRefusal(response: Response, config: OpencloudCall['config
 class Refused extends Error {}
 
 export function createOpencloudActTools(config: OpencloudActConfig): Tool[] {
-  // Les verbes sont ceux du jeton, les mêmes pour tout appelant : un cache pour tout le groupe.
-  let cache: { at: number; verbs: Verb[] } | undefined;
+  // Les verbes sont ceux d'un jeton : un cache par jeton (clé : son empreinte), jamais partagé entre identités.
+  const caches = new Map<string, { at: number; verbs: Verb[] }>();
 
-  async function loadVerbs(call: OpencloudCall, fresh = false): Promise<{ verbs: Verb[]; scope: string }> {
-    if (!fresh && cache && Date.now() - cache.at < VERBS_TTL_MS) return { verbs: cache.verbs, scope: 'write' };
+  async function loadVerbs(
+    call: OpencloudCall, who: ResolvedToken, fresh = false
+  ): Promise<{ verbs: Verb[]; scope: string }> {
+    const cached = caches.get(who.fingerprint);
+    if (!fresh && cached && Date.now() - cached.at < VERBS_TTL_MS) return { verbs: cached.verbs, scope: 'write' };
     const response = await send(call, 'GET', VERBS_PATH);
-    if (!response.ok) throw new Refused(await describeRefusal(response, config));
+    if (!response.ok) throw new Refused(await describeRefusal(response, who.token));
     const payload = await response.json() as { scope?: string };
     const verbs = parseVerbs(payload);
-    cache = { at: Date.now(), verbs };
+    caches.set(who.fingerprint, { at: Date.now(), verbs });
     return { verbs, scope: text(payload.scope) || 'write' };
   }
 
@@ -122,11 +127,23 @@ export function createOpencloudActTools(config: OpencloudActConfig): Tool[] {
       throw error;
     }
   };
-  const callOf = (ctx: ToolContext): OpencloudCall => ({
-    config,
-    downstreamHeaders: Object.fromEntries(
-      Object.entries(ctx.downstreamHeaders()).map(([name, value]) => [name, headerValue(value)]))
-  });
+  /** Le jeton de l'appelant, ou un refus clair : jamais le jeton d'une autre identité. */
+  const callOf = (ctx: ToolContext): { call: OpencloudCall; who: ResolvedToken } => {
+    const who = config.tokens.resolve(ctx.user);
+    if (!who) {
+      throw new Refused(`Aucun jeton d'écriture openCloud pour cette identité (${getIdentityKey(ctx.user)}). `
+        + 'L\'administrateur doit en créer un et l\'ajouter à OPENCLOUD_ACT_TOKENS_FILE.');
+    }
+    ctx.note({ token_entry: who.entry }); // le nom de l'entrée du fichier, jamais le jeton
+    return {
+      who,
+      call: {
+        config: { url: config.url, timeoutMs: config.timeoutMs, token: who.token },
+        downstreamHeaders: Object.fromEntries(
+          Object.entries(ctx.downstreamHeaders()).map(([name, value]) => [name, headerValue(value)]))
+      }
+    };
+  };
 
   return [
     defineTool({
@@ -138,7 +155,8 @@ export function createOpencloudActTools(config: OpencloudActConfig): Tool[] {
       annotations: { readOnlyHint: true, openWorldHint: false },
       maxResultChars: 7_000,
       handler: (_args, ctx) => guard(async () => {
-        const { verbs, scope } = await loadVerbs(callOf(ctx), true);
+        const { call, who } = callOf(ctx);
+        const { verbs, scope } = await loadVerbs(call, who, true);
         return replyText(toJson({
           scope,
           verbs: verbs.map(({ id, summary, params, body, reverse }) => ({ id, summary, params, body, reverse }))
@@ -162,12 +180,12 @@ export function createOpencloudActTools(config: OpencloudActConfig): Tool[] {
       // Le verbe seulement ; les identifiants de chemin sont notés par le handler. Jamais le corps.
       auditArgs: ({ verb }) => ({ verb: clip(verb, 100) }),
       handler: ({ verb: id, args = {} }, ctx) => guard(async () => {
-        const call = callOf(ctx);
-        let { verbs } = await loadVerbs(call);
+        const { call, who } = callOf(ctx);
+        let { verbs } = await loadVerbs(call, who);
         let verb = verbs.find((candidate) => candidate.id === id);
         // Un verbe que le cache ne connaît pas a peut-être été ajouté depuis : une relecture, une fois.
         if (!verb) {
-          ({ verbs } = await loadVerbs(call, true));
+          ({ verbs } = await loadVerbs(call, who, true));
           verb = verbs.find((candidate) => candidate.id === id);
         }
         if (!verb) {
@@ -189,8 +207,8 @@ export function createOpencloudActTools(config: OpencloudActConfig): Tool[] {
           throw error;
         }
         if (!response.ok) {
-          const message = await describeRefusal(response, config, verb.id);
-          if (response.status === 403) cache = undefined; // les verbes du jeton ont changé
+          const message = await describeRefusal(response, who.token, verb.id);
+          if (response.status === 403) caches.delete(who.fingerprint); // les verbes de CE jeton ont changé
           return replyError(message);
         }
         let result: Record<string, unknown>;

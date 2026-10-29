@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { opencloudActConfig } from '../src/tools/opencloud-act/config.js';
+import { singleTokenTable } from '../src/tools/opencloud-act/tokens.js';
 import { createOpencloudActTools } from '../src/tools/opencloud-act/tools.js';
 import type { ToolContext } from '../src/tools/types.js';
 import { fakeOpencloudAct, OPENCLOUD_ACT_TOKEN } from './fakes.js';
@@ -38,7 +39,9 @@ const act = (verb: string, args: Record<string, unknown> = {}) => call('openclou
 const posts = () => opencloud.requests.filter((request) => request.method === 'POST');
 /** Un contexte d'outil appelé sans serveur MCP : pour régler le délai et les en-têtes. */
 const directContext = (headers: Record<string, string> = { 'X-MCP-Maison-User': 'lucas' }) =>
-  ({ note: () => {}, downstreamHeaders: () => headers }) as unknown as ToolContext;
+  ({
+    user: { id: 'lucas', provider: 'dev-token' }, note: () => {}, downstreamHeaders: () => headers
+  }) as unknown as ToolContext;
 const SECRETS = [OPENCLOUD_ACT_TOKEN];
 
 describe('groupe opencloud_act', () => {
@@ -72,7 +75,7 @@ describe('groupe opencloud_act', () => {
       .toThrow('OPENCLOUD_ACT_URL invalide');
     expect(() => opencloudActConfig.parse({ ...env, OPENCLOUD_ACT_URL: 'http://192.168.1.10:8080' })).not.toThrow();
     expect(() => opencloudActConfig.parse({ OPENCLOUD_ACT_URL: env.OPENCLOUD_ACT_URL }))
-      .toThrow('OPENCLOUD_ACT_TOKEN manquante');
+      .toThrow('OPENCLOUD_ACT_TOKENS_FILE manquante');
   });
 
   it('opencloud_verbs liste les verbes du jeton avec leur inverse, sans chemin ni méthode', async () => {
@@ -185,7 +188,9 @@ describe('groupe opencloud_act', () => {
   });
 
   it('délai dépassé : dit que l\'action a peut-être été exécutée', async () => {
-    const [, act] = createOpencloudActTools({ url: service.url, token: OPENCLOUD_ACT_TOKEN, timeoutMs: 300 });
+    const [, act] = createOpencloudActTools({
+      url: service.url, tokens: singleTokenTable(OPENCLOUD_ACT_TOKEN), timeoutMs: 300
+    });
     const result = await act.handler({ verb: 'proxmox.vm.start', args: { id: 'pve', vmid: 'lent' } }, directContext());
     expect(result.isError).toBe(true);
     expect(extractText(result)).toBe(
@@ -238,7 +243,9 @@ describe('groupe opencloud_act', () => {
   });
 
   it('l\'en-tête d\'identité fait 100 caractères au plus (contrat d\'openCloud ; son code : 200)', async () => {
-    const [verbs, act] = createOpencloudActTools({ url: service.url, token: OPENCLOUD_ACT_TOKEN, timeoutMs: 2_000 });
+    const [verbs, act] = createOpencloudActTools({
+      url: service.url, tokens: singleTokenTable(OPENCLOUD_ACT_TOKEN), timeoutMs: 2_000
+    });
     const headers = { 'X-MCP-Maison-User': 'u'.repeat(200), 'X-MCP-Maison-User-Name': 'n'.repeat(150) };
     await verbs.handler({}, directContext(headers));
     await act.handler({ verb: 'proxmox.vm.start', args: { id: 'pve', vmid: 1 } }, directContext(headers));

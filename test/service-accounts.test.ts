@@ -114,7 +114,7 @@ describe('commande service-account', () => {
     expect(run.out()).toMatch(/^mcpsa_[A-Za-z0-9_-]{43}\n$/);
     const token = run.out().trim();
     expect(run.err()).toContain('Compte de service "raph" créé (échéance dans 90 j)');
-    expect(run.err()).toContain('users.service:raph');
+    expect(run.err()).toContain('clé service:raph sous users:');
     expect(run.err()).not.toContain(token);
     const accounts = new ServiceAccounts(databaseIn(dir));
     expect(accounts.verify(token)?.id).toBe('raph');

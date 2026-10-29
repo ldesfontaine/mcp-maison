@@ -87,7 +87,7 @@ export function runCli(argv: string[], databasePath: string, io: CliIo): number 
       io.stdout.write(`${token}\n`);
       const expiry = expiresInDays ? `échéance dans ${expiresInDays} j` : 'sans échéance';
       err(`Compte de service "${id}" créé (${expiry}). `
-        + `Droits : users.service:${id} dans permissions.yaml.`);
+        + `Droits : clé service:${id} sous users: dans permissions.yaml.`);
     } else if (action === 'list') {
       if (rest.length) throw new UsageError(`argument inattendu : ${rest[0]}`);
       accounts = new ServiceAccounts(databasePath);

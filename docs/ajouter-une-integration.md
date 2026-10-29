@@ -82,13 +82,13 @@ service**. Pour que le journal du service aval ne voie pas que ce jeton, chaque 
 `ctx.downstreamHeaders()` :
 
 ```
-X-MCP-Maison-User: <user.id : sub OIDC ou identifiant de AUTH_DEV_TOKENS>
+X-MCP-Maison-User: <user.id : sub OIDC ou identifiant de AUTH_DEV_TOKENS ; « agent:<id> » pour un compte de service>
 X-MCP-Maison-User-Name: <nom affiché : name, sinon username, sinon id>
 ```
 
 - Jamais un secret, jamais le jeton de l'IdP, ni courriel ni groupes. Valeurs nettoyées pour un en-tête HTTP :
-  ASCII imprimable (accents retirés), sans retour à la ligne, 200 caractères au plus (100 pour `opencloud_act`, la
-  limite du contrat côté openCloud).
+  ASCII imprimable (accents retirés), sans retour à la ligne ; 100 caractères au plus pour `X-MCP-Maison-User` (la
+  limite du contrat côté openCloud), 200 pour le nom. Une seule valeur par en-tête.
 - **Le service aval peut journaliser `on_behalf_of`** (ex. recopier `X-MCP-Maison-User` dans le détail de son
   événement d'audit quand l'acteur est le jeton de service). **Il fait confiance au jeton de service, pas à
   l'en-tête** : n'importe quel détenteur du jeton peut écrire ces en-têtes. Ils rendent le journal lisible, ils
@@ -183,9 +183,15 @@ Agir dans openCloud. `TOOL_GROUPS=core,opencloud_act`, permission `opencloud:act
 - **Erreurs** : `403 verb_forbidden` (« ce jeton ne porte pas ce verbe »), `429` avec `Retry-After`, `409` et `422` avec la
   clé de refus d'openCloud telle quelle. Un délai dépassé dit que l'action a peut-être été exécutée.
 - **Journal** : le verbe, les identifiants de chemin, `run_id` et `state` ; jamais le corps.
-- **Pourquoi un jeton à part** (`OPENCLOUD_ACT_TOKEN`, distinct de `OPENCLOUD_TOKEN`) : on peut donner
+- **Pourquoi un jeton à part** (`OPENCLOUD_ACT_TOKENS_FILE`, distinct de `OPENCLOUD_TOKEN`) : on peut donner
   `opencloud:read` sans `opencloud:act`, et le jeton d'écriture ne sert jamais à lire. Deux droits, deux jetons.
+- **Un jeton d'écriture par identité** : `OPENCLOUD_ACT_TOKENS_FILE` pointe un fichier JSON `{ "service:raph": "…",
+  "<sub OIDC>": "…", "default": "…" }` (`src/tools/opencloud-act/tokens.ts`). Le handler prend le jeton de
+  `ctx.user` (clé `service:<id>` pour un agent, le `sub` pour une personne), sinon `default`, sinon refuse : jamais
+  le jeton d'un autre. Le cache des verbes est par jeton. Le fichier est refusé s'il est lisible par le groupe ou les
+  autres. Un nouveau groupe qui a besoin d'un secret par identité reprend ce modèle ; l'identité à utiliser est
+  `getIdentityKey(user)`, qui distingue un agent d'une personne de même nom. Procédure : `deploiement.md`.
 - **Créer le jeton, côté openCloud** : Paramètres › Jetons d'API, nouveau jeton, portée **écriture**, cocher seulement les
-  verbes voulus (le jeton ne voit et ne peut que ceux-là), copier le jeton dans `OPENCLOUD_ACT_TOKEN`.
+  verbes voulus (le jeton ne voit et ne peut que ceux-là), l'ajouter au fichier de jetons (sans l'afficher : `deploiement.md`).
   `OPENCLOUD_ACT_URL` peut valoir `OPENCLOUD_URL` ; mêmes règles d'hôte et de `http://`.
 - Le journal d'openCloud nomme le jeton d'API ; `X-MCP-Maison-User` y dit pour qui (« pour qui »).

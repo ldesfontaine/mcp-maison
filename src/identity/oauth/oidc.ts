@@ -126,7 +126,8 @@ function mapClaimsToUser(claims: Record<string, unknown>, groupsClaim: string): 
   if (!id) throw new Error('userinfo sans sub');
   const groups = Array.isArray(claims[groupsClaim]) ? (claims[groupsClaim] as unknown[]) : [];
   return {
-    id, username: readText('preferred_username'), name: readText('name'), email: readText('email'), provider: 'oidc',
+    id, username: readText('preferred_username'), name: readText('name'), email: readText('email'),
+    provider: 'oidc', kind: 'person',
     groups: groups.filter((group): group is string => typeof group === 'string')
   };
 }

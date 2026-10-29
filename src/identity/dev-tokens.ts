@@ -3,6 +3,7 @@ import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/p
 import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { isPlaceholder } from '../placeholders.js';
 import { hashSecret } from './secrets.js';
+import { SERVICE_TOKEN_PREFIX, type ServiceAccounts } from './service-accounts.js';
 import type { User } from './user.js';
 
 // Jetons de développement (AUTH_DEV_TOKENS) : pour les tests et le poste local, refusés en production
@@ -26,18 +27,27 @@ export function parseDevTokens(spec: string): Map<string, User> {
     }
     if (isPlaceholder(token)) throw new Error(`jeton de "${id}" : valeur d'exemple à remplacer (openssl rand -hex 32)`);
     if (usersByHash.has(hashSecret(token))) throw new Error(`jeton en double (identifiant "${id}")`);
-    usersByHash.set(hashSecret(token), { id, username: id, name: id, provider: 'dev-token' });
+    usersByHash.set(hashSecret(token), { id, username: id, name: id, provider: 'dev-token', kind: 'person' });
   });
   if (!usersByHash.size) throw new Error('aucun jeton');
   return usersByHash;
 }
 
-/** Vérificateur Bearer : jetons de développement d'abord, puis le serveur OAuth s'il est monté. */
+/**
+ * Vérificateur Bearer : comptes de service (jeton `mcpsa_…`, valable en production), puis jetons de développement,
+ * puis le serveur OAuth s'il est monté. Un jeton inconnu, révoqué ou échu : la même erreur, sans détail.
+ */
 export function createBearerVerifier(
-  devUsers: Map<string, User>, oauth?: OAuthTokenVerifier, resource?: URL
+  devUsers: Map<string, User>, oauth?: OAuthTokenVerifier, resource?: URL, serviceAccounts?: ServiceAccounts
 ): OAuthTokenVerifier {
   return {
     async verifyAccessToken(token: string): Promise<AuthInfo> {
+      if (token.startsWith(SERVICE_TOKEN_PREFIX)) {
+        const agent = serviceAccounts?.verify(token);
+        if (!agent) throw new InvalidTokenError('Invalid token');
+        const expiresAt = Math.floor(Date.now() / 1000) + DEV_TOKEN_TTL;
+        return { token, clientId: `service:${agent.id}`, scopes: [], expiresAt, resource, extra: { user: agent } };
+      }
       const user = devUsers.get(hashSecret(token));
       if (user) {
         // requireBearerAuth exige une expiration : on en donne une glissante.

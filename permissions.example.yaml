@@ -11,6 +11,11 @@ everyone:            # toute personne connectée
 users:               # par sub OIDC (voir whoami) ou username, ou id de AUTH_DEV_TOKENS
   lucas: ["*"]
 
+# Un agent sans navigateur (compte de service, docs/identite.md) : sa clé est service:<id>, et elle seule.
+# Minimum utile. Jamais "*" ni "opencloud:*" (ils incluent opencloud:act).
+# users:
+#   service:raph: [core:whoami, opencloud:read, opencloud:act]
+
 groups:              # par groupe de l'IdP (chemin complet GitLab, ex. "exemple/dev")
   exemple/dev:
     - gitlab:*       # gitlab_read, gitlab_edit, gitlab_write

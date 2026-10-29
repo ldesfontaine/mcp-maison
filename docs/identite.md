@@ -1,6 +1,8 @@
 # Identité : qui appelle
 
-Chaque appel d'outil arrive avec une personne : `User { id, username?, name?, email?, provider, groups? }`.
+Chaque appel d'outil arrive avec une identité : `User { id, username?, name?, email?, provider, kind?, groups? }`. C'est une
+personne (`kind: person`, `provider` `oidc` ou `dev-token`) ou un agent sans navigateur (`provider: service`,
+`kind: agent`, voir « Comptes de service »).
 
 - `id` est le claim **`sub`** de l'IdP : attribué par lui, il ne change jamais. C'est lui qui lie les jetons,
   les sessions et le journal à la personne.
@@ -8,8 +10,9 @@ Chaque appel d'outil arrive avec une personne : `User { id, username?, name?, em
   certains IdP la personne peut le modifier elle-même : il n'identifie donc personne de façon sûre.
 Elle sert aux droits (`droits.md`), au journal, et aux outils (ex. auteur du commit GitLab).
 
-Il n'y a qu'une voie en production : **OpenID Connect**, avec n'importe quel IdP (GitLab, Keycloak,
-Authentik, Zitadel, Google…). Les jetons de développement ne servent qu'aux tests et au poste local.
+Pour les **personnes**, il n'y a qu'une voie en production : **OpenID Connect**, avec n'importe quel IdP (GitLab,
+Keycloak, Authentik, Zitadel, Google…). Les jetons de développement ne servent qu'aux tests et au poste local.
+Un **agent** sans navigateur (ex. Raph) a, lui, un compte de service (section suivante), valable en production.
 
 | | OIDC (`OIDC_*`) | Jetons de dev (`AUTH_DEV_TOKENS`) |
 | --- | --- | --- |
@@ -22,6 +25,55 @@ Authentik, Zitadel, Google…). Les jetons de développement ne servent qu'aux t
 
 Les deux peuvent coexister hors production. Au démarrage, `AUTH_DEV_TOKENS` affiche un avertissement.
 Un jeton de dev se tire avec `openssl rand -hex 32` ; il est cherché par son empreinte SHA-256, jamais journalisé.
+
+## Comptes de service : un agent, son identité
+
+Un agent IA qui appelle mcp-maison sans navigateur n'a pas d'IdP où se connecter. Il a un **compte de service**, créé
+sur la machine, qui lui donne un jeton `Authorization: Bearer mcpsa_…` valable sur `/mcp` (et `/audit`), **en production
+comme ailleurs**. Chaque agent a le sien : on en révoque un sans toucher aux autres.
+
+| | Compte de service | Personne (OIDC) |
+| --- | --- | --- |
+| `User` | `{ id: "raph", provider: "service", kind: "agent", groups: [] }` | `{ id: <sub>, provider: "oidc", kind: "person", … }` |
+| Droits | clé `service:raph` de `users:` (`droits.md`), plus `everyone` ; jamais de groupe | `users.<sub>`, `users.<username>`, groupes, `everyone` |
+| Vers l'aval | `X-MCP-Maison-User: agent:raph` | `X-MCP-Maison-User: <sub>` |
+| Création | commande en ligne sur la machine, jamais par HTTP | première connexion |
+
+```bash
+node dist/cli.js service-account create raph --token-only [--expires-in-days 365] > secret   # jeton, une seule fois
+node dist/cli.js service-account list                                                         # jamais le jeton
+node dist/cli.js service-account revoke raph
+```
+
+(En Docker : `docker compose exec -T mcp node dist/cli.js …`, voir la procédure dans `deploiement.md`.)
+
+- **Le jeton n'existe en clair qu'une fois.** `create` l'écrit sur la **sortie standard seulement avec `--token-only`**,
+  et rien d'autre n'y passe : tout le reste (messages, migrations) va sur la sortie d'erreur. C'est fait pour être
+  **redirigé ou canalisé** vers le fichier de secrets de l'agent, sans qu'il apparaisse à l'écran. Sans `--token-only`,
+  ou si la sortie est un terminal, la commande refuse et ne crée rien. Il est tiré au hasard (32 octets, préfixe
+  `mcpsa_` pour le reconnaître dans un détecteur de secrets).
+- **Stockage** : l'empreinte SHA-256 seulement (table `service_accounts`, migration 6) ; jamais le jeton en base, dans
+  le journal ni dans la sortie de `list`. Perdu, un jeton ne se retrouve pas : révoquer, recréer.
+- **Révocation immédiate** : la base est relue à chaque appel, une session déjà ouverte est refusée à sa requête
+  suivante, sans redémarrage. Un compte révoqué ou échu peut être recréé sous le même identifiant (rotation du
+  jeton, mêmes droits) ; un compte actif, non.
+- **Pas d'expiration silencieuse** : `--expires-in-days` fixe une échéance (1 à 3650 jours ; sans elle, le jeton dure
+  jusqu'à révocation). `list` montre la date, signale `échoit sous 30 j`, `ÉCHU`, et les comptes qui n'ont pas servi
+  depuis 30 jours (`inactif depuis plus de 30 j`, `jamais utilisé…`). Le dernier usage est tenu à la minute près.
+- **Réponses sans détail** : un jeton inconnu, révoqué ou échu reçoit le même `401`. Au-delà de 20 échecs par minute
+  depuis une même adresse, cette adresse reçoit `429` jusqu'à la fin de la minute (même avec un bon jeton). Derrière un
+  reverse proxy, `TRUST_PROXY` doit être réglé, sinon toutes les adresses n'en font qu'une (celle du proxy).
+- **Les routes OAuth ne s'ouvrent pas** à ce jeton : il n'est reconnu que par le contrôle Bearer de `/mcp` et `/audit`.
+- **Identifiant** : `^[a-z][a-z0-9-]{1,31}$`. Il vit dans son propre espace de noms : le compte `raph` et une personne
+  dont le `sub` ou le `preferred_username` est `raph` n'ont ni les mêmes droits, ni les mêmes sessions, ni le même
+  jeton d'écriture openCloud (`droits.md`, `deploiement.md`).
+- Le journal de mcp-maison enregistre `user` (l'identifiant), `provider: service` et `kind: agent` ; `whoami` les montre.
+
+**Ce que ça coûte.** C'est un secret à longue durée de vie, à garder côté agent (fichier à droits `600`, jamais dans
+un dépôt, une conversation ni un journal) : quiconque le lit agit avec les droits de l'agent jusqu'à révocation.
+D'où l'échéance conseillée, le jeton par agent, et le droit minimal dans `permissions.yaml`. Une alternative sans
+secret durable côté agent serait le flux OAuth `client_credentials` auprès de l'IdP : **à étudier, non vérifié ici**
+(ni la prise en charge par chaque IdP, ni le mappage vers `service:<id>` n'ont été essayés).
 
 ## Comment marche la connexion
 
@@ -135,7 +187,12 @@ servir d'IdP. Il devient un groupe d'outils (`src/tools/<groupe>/`) qui appelle 
 service, en indiquant la personne connectée dans ce qu'il écrit. Si l'outil propose un plugin OIDC
 fournisseur, ce n'est qu'un `OIDC_ISSUER` de plus, sans code.
 
-## Retirer quelqu'un
+## Retirer quelqu'un (ou un agent)
+
+Un agent : `service-account revoke <id>` (effet au prochain appel), puis retirer sa clé `service:<id>` de
+`permissions.yaml` et son entrée de `OPENCLOUD_ACT_TOKENS_FILE`, et supprimer le jeton d'API côté openCloud.
+
+Une personne :
 
 1. Le retirer de `permissions.yaml` (ou d'un groupe autorisé) : ses appels sont refusés dès l'enregistrement du fichier.
 2. Couper ses jetons : `sqlite3 data/mcp-maison.db "DELETE FROM oauth_tokens WHERE username = 'bob'"`

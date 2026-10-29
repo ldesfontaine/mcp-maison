@@ -1,7 +1,7 @@
 import express, { type Express, type NextFunction, type Request, type Response as ExpressResponse } from 'express';
 import type { AuditEntry, AuditLog } from '../audit/log.js';
 import type { Authorizer } from '../authorization/authorizer.js';
-import { getDisplayId } from '../identity/user.js';
+import { getDisplayId, getKind } from '../identity/user.js';
 import { parseSize } from './file-types.js';
 import type { UploadedFile, UploadLink, UploadLinks, UploadOutcome, UploadReceiver } from './links.js';
 import { PAGE_CSP, renderInvalidLinkPage, renderUploadPage } from './page.js';
@@ -27,8 +27,8 @@ interface Claimed { token: string; claim: string; link: UploadLink; receiver: Up
 function startEntry(link: UploadLink, receiver: UploadReceiver): AuditEntry {
   return {
     ts: new Date().toISOString(), user: link.user.id, username: link.user.username, userName: link.user.name,
-    provider: link.user.provider, tool: receiver.auditTool, args: { ...receiver.describe(link.target).auditArgs },
-    ok: false, ms: 0
+    provider: link.user.provider, kind: getKind(link.user), tool: receiver.auditTool,
+    args: { ...receiver.describe(link.target).auditArgs }, ok: false, ms: 0
   };
 }
 

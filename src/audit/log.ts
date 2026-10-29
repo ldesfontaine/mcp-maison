@@ -4,10 +4,11 @@ import { dirname } from 'node:path';
 /** Une ligne du journal (JSON Lines). Jamais de contenu de fichier ni de secret. */
 export interface AuditEntry {
   ts: string; // ISO 8601
-  user: string; // User.id (sub OIDC)
+  user: string; // User.id (sub OIDC, ou id du compte de service)
   username?: string; // lisible, pour filtrer et lire le journal
   userName?: string;
-  provider: string; // oidc | dev-token
+  provider: string; // oidc | dev-token | service
+  kind?: string; // person | agent
   tool: string;
   args: Record<string, unknown>; // arguments résumés
   result?: Record<string, unknown>; // détails ajoutés par l'outil (ex. commitId)

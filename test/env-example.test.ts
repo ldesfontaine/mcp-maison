@@ -25,7 +25,8 @@ describe('variables d\'environnement documentées', () => {
 
   it('aucune doc ne cite une variable qui n\'existe pas', () => {
     const fictional = /^METEO_/; // l'exemple fictif de ajouter-une-integration.md
-    const docs = ['README.md', ...readdirSync('docs').map((name) => `docs/${name}`)];
+    const names = readdirSync('docs', { recursive: true }).map(String).filter((name) => name.endsWith('.md'));
+    const docs = ['README.md', ...names.map((name) => `docs/${name}`)];
     for (const path of docs) {
       const unknown = listCitedKeys(readDoc(path)).filter((key) => !readKeys.includes(key) && !fictional.test(key));
       expect(unknown, path).toEqual([]);

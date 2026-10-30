@@ -1,6 +1,6 @@
 {
   "name": "mcp-maison",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Serveur MCP distant générique, multi-utilisateurs, à outils enfichables",
   "type": "module",
   "private": true,

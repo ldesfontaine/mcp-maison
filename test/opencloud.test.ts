@@ -146,6 +146,25 @@ describe('groupe opencloud', () => {
     expect(JSON.stringify(await mcp.audit.listRecent())).not.toContain('ligne 1');
   });
 
+  it('journal d\'un conteneur : l\'id renvoyé par la liste (<machine>:<64 hex>) passe, « : » encodé', async () => {
+    const hex = 'ab12'.repeat(16);
+    const machineUuid = '0b9f6c1e-7a52-4d0e-9d57-3f1c2a8e4b60';
+    for (const id of [`local:${hex}`, `${machineUuid}:${hex}`]) {
+      const result = await call('opencloud_container_logs', { id, tail: 5 });
+      expect(result.isError).not.toBe(true);
+      expect(lastRequest().path).toBe(`/api/containers/${encodeURIComponent(id)}/logs`);
+    }
+    await call('opencloud_containers', { id: `local:${hex}` });
+    expect(lastRequest().path).toBe(`/api/containers/${encodeURIComponent(`local:${hex}`)}`);
+  });
+
+  it('journal d\'un conteneur : un id hors motif ou trop long est refusé avant tout appel', async () => {
+    for (const id of ['../x', 'a/b', 'local:' + 'a'.repeat(65), 'm'.repeat(65) + ':abc', 'a:b:c', '', 'a b']) {
+      const result = await call('opencloud_container_logs', { id, tail: 5 });
+      expect(result.isError).toBe(true);
+    }
+  });
+
   it('annuaire, statut, audit, ordres : les bonnes routes et requêtes', async () => {
     expect(extractText(await call('opencloud_directory', { view: 'export' }))).toBe('version: 1\nservices: []\n');
     expect(lastRequest().path).toBe('/api/manifest/export');

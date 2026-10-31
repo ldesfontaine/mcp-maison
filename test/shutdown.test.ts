@@ -17,7 +17,7 @@ async function findFreePort(): Promise<number> {
 }
 
 describe('arrêt du processus (main.ts)', () => {
-  it('SIGTERM avec un flux SSE ouvert : sessions fermées, base refermée, sortie 0 bien avant 8 s', async () => {
+  it('SIGTERM avec un flux SSE ouvert : sessions fermées, base refermée, sortie 0 en moins de 3 s', async () => {
     const port = await findFreePort();
     const dataDir = tempDir();
     const child = spawn(process.execPath, ['--import', 'tsx', 'src/main.ts'], {
@@ -46,7 +46,7 @@ describe('arrêt du processus (main.ts)', () => {
     const started = Date.now();
     child.kill('SIGTERM');
     expect(await exited).toBe(0);
-    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(Date.now() - started).toBeLessThan(3_000);
     expect(output).toContain('[arrêt] SIGTERM reçu');
     expect(output).toContain('[arrêt] terminé');
   }, 20_000);

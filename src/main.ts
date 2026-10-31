@@ -4,6 +4,7 @@ import { createApp, describeIdentity } from './app.js';
 // Point d'entrée du processus : assemble le serveur, écoute, s'arrête proprement.
 // Toute erreur de démarrage est affichée en une phrase, sans pile d'appels ni valeur de variable.
 const SHUTDOWN_TIMEOUT_MS = 8_000; // docker stop envoie SIGKILL après 10 s
+const SHUTDOWN_GRACE_MS = 2_000; // laissé aux requêtes en cours avant de couper les flux SSE restants
 
 type BuiltApp = ReturnType<typeof createApp>;
 
@@ -35,8 +36,9 @@ function startServer() {
 
 /**
  * Arrêt propre (docker stop) : plus de nouvelles connexions, connexions inactives coupées, puis les
- * sessions MCP (ce qui termine leurs flux), puis la base une fois les requêtes en cours finies.
- * Au-delà de 8 s, sortie forcée.
+ * sessions MCP, puis la base une fois les requêtes en cours finies. Un client MCP garde un flux SSE ouvert
+ * en permanence : après un court délai de grâce, les connexions restantes sont coupées, et l'arrêt demandé
+ * sort en 0. Le filet (sortie 1) ne sert que si la fermeture elle-même échoue ou bloque au-delà de 8 s.
  */
 function createShutdown(httpServer: Server, built: BuiltApp) {
   let stopping = false;
@@ -50,9 +52,15 @@ function createShutdown(httpServer: Server, built: BuiltApp) {
     }, SHUTDOWN_TIMEOUT_MS).unref();
     const requestsDone = new Promise((resolve) => httpServer.close(resolve));
     httpServer.closeIdleConnections();
-    await built.closeSessions();
-    await requestsDone;
-    built.closeStorage();
+    setTimeout(() => httpServer.closeAllConnections(), SHUTDOWN_GRACE_MS).unref();
+    try {
+      await built.closeSessions();
+      await requestsDone;
+      built.closeStorage();
+    } catch (error) {
+      console.error(`[arrêt] échec de la fermeture : ${(error as Error).message}`);
+      process.exit(1);
+    }
     console.log('[arrêt] terminé');
     process.exit(0);
   };

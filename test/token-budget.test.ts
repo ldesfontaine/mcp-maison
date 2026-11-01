@@ -112,8 +112,8 @@ describe('budget de définition des outils', () => {
       gitlab_upload_link: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       ...Object.fromEntries(OPENCLOUD_TOOLS.map((name) => [name, local])), // lectures seules d'openCloud
       opencloud_verbs: local, // lit la liste des verbes du jeton d'écriture
-      // Écrit dans openCloud, mais chaque verbe a son inverse, déclaré dans openCloud : jamais destructif d'office.
-      opencloud_act: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+      // Écrit dans openCloud et peut supprimer une machine (machine.delete) : destructif, décision du 01/11/2026.
+      opencloud_act: { readOnlyHint: false, destructiveHint: true, openWorldHint: false }
     });
   });
 

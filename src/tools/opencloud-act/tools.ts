@@ -187,7 +187,7 @@ export function createOpencloudActTools(config: OpencloudActConfig): Tool[] {
           .describe('Valeurs des paramètres de chemin et champs du corps')
       },
       permission: PERMISSION,
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
       // Le verbe seulement ; les identifiants de chemin sont notés par le handler. Jamais le corps.
       auditArgs: ({ verb }) => ({ verb: clip(verb, 100) }),
       handler: ({ verb: id, args = {} }, ctx) => guard(async () => {

@@ -202,13 +202,26 @@ export function fakeOpencloud() {
     last_error: '', counts: { interfaces: 2, rules: 2, leases: 2, gateways: 3 }
   };
   const reading = { id: 'fw1', name: 'Bordure', last_read_at: at, last_error: '' };
+  const PROJECT = {
+    id: 'prj1', name: 'client-a', title: 'Client A', service_ids: ['svc1'], created_at: at, updated_at: at,
+    publication: { slug: 'client-a', announcement: 'Maintenance samedi.', language: 'fr',
+      public_url: 'https://oc.example.com/statut/client-a', published_at: at }
+  };
+  const PROJECT_PRIVATE = {
+    id: 'prj2', name: 'interne', title: 'Interne', service_ids: [], publication: null, created_at: at, updated_at: at
+  };
   const routes: Record<string, unknown> = {
     '/api/session': { version: '0.9.0', language: 'fr', languages: ['fr', 'en'],
       certificate_thresholds: { warning: 21, danger: 7 }, disk_thresholds: { attention: 80, danger: 90 } },
-    '/api/counts': { machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } },
+    // internal/server/testdata/counts.golden.json : le module « status » n'est plus dans modules (C9), les
+    // incidents ouverts restent comptés sous « status ».
+    '/api/counts': { machines: { total: 1, online: 1 }, status: { open_incidents: 0 },
+      alerts: { open: 2, unacknowledged: 1 },
+      modules: [{ id: 'probes', configured: true }, { id: 'firewall', configured: false },
+        { id: 'backups', configured: false }, { id: 'jobs', configured: true }] },
     '/api/machines': {
       machines: [{ id: 'local', name: 'hote', hostname: 'hote', address: '10.0.0.1', os: 'debian', arch: 'amd64',
-        online: true, last_seen_at: at, agent: null }],
+        online: true, last_seen_at: at, agent: null, roles: [], role: 'generic', modules: ['containers', 'probes'] }],
       pending: [{ id: 't1', name: 'nouvelle', masked: 'oc_ab…', expires_at: at, reenroll: false }]
     },
     '/api/containers': { containers: [container], engines: [] },
@@ -248,8 +261,16 @@ export function fakeOpencloud() {
       destination: 'ops@example.com', has_secret: false, min_severity: 'danger', notify_resolve: true,
       enabled: true, plain: false, created_at: at
     }] },
-    '/api/status/pages': { pages: [{ id: 's1', project_id: '', slug: 'public', title: 'Statut', announcement: '',
-      language: 'fr', public_url: 'https://oc.example.com/statut/public', created_at: at, updated_at: at }] },
+    // Un projet publié et un sans page (internal/server/testdata/projects.golden.json) ; la page de statut est sa
+    // publication. /api/status/pages n'existe plus : le faux ne la sert pas.
+    '/api/directory/projects': { projects: [PROJECT, PROJECT_PRIVATE] },
+    '/api/directory/projects/prj1': PROJECT,
+    '/api/status/components': {
+      public_url: 'https://oc.example.com/statut/client-a', global: 'degraded',
+      components: [{ id: 'k1', project_id: 'prj1', name: 'Site', position: 0, implicit: false, derived: 'degraded',
+        effective: 'degraded', created_at: at,
+        members: [{ kind: 'probe', id: 'p1', name: 'api', state: 'degraded', counts: true, present: true }] }]
+    },
     // targets : ce que l'incident vise ; components : ceux que ces cibles touchent, souvent aucun.
     '/api/status/incidents': { incidents: [
       { id: 'i1', title: 'Nextcloud lent', impact: 'minor', status: 'resolved', starts_at: at, ends_at: null,

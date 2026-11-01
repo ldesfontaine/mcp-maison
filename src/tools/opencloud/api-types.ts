@@ -9,12 +9,13 @@ export type Counts = Record<string, unknown>; // rendu tel quel : des compteurs 
 export interface Machine {
   id: string; name: string; hostname: string; address: string; os: string; arch: string; online: boolean;
   last_seen_at: Time;
+  role: string; modules: string[]; // role : donné par l'opérateur ; modules : ceux du rôle et de ce que l'agent observe
   agent: { version: string; revoked_at: Time; capabilities: { name: string }[]; capabilities_differ: boolean } | null;
   lifecycle?: { status: string; product: string; cycle: string; eol_from: string };
 }
 export interface Machines { machines: Machine[] } // + pending (jetons d'enrôlement), non lu
 
-export interface Finding { kind: string; level: string; port?: number; protocol?: string }
+interface Finding { kind: string; level: string; port?: number; protocol?: string }
 export interface Container {
   id: string; machine_name: string; name: string; group: string; image: string; state: string; exit_code: number;
   oom_killed: boolean; health: string; restart_count: number; compose_service: string; update_policy: string;
@@ -23,7 +24,7 @@ export interface Container {
   networks: { name: string }[]; depends_on: { name: string }[]; exposure: Finding[];
   started_at: Time; finished_at: Time; current: Record<string, unknown> | null;
 }
-export interface Engine { present: boolean; reason: string; version: string }
+interface Engine { present: boolean; reason: string; version: string }
 export interface Containers { containers: Container[] }
 export interface ContainerDetail {
   container: Container; engine: Engine | null;
@@ -83,8 +84,14 @@ export interface ProbeDetail {
   results: { checked_at: string; outcome: string; duration_ms: number; code: number | null; reason: string }[];
 }
 
-export interface StatusPage { id: string; slug: string; title: string; announcement: string; public_url: string }
-export interface StatusPages { pages: StatusPage[] }
+// GET /api/directory/projects[/{id}] (api_directory.go, projectJSON) : la page de statut est la publication du projet.
+export interface Project {
+  id: string; name: string; title: string; service_ids: string[];
+  publication: {
+    slug: string; announcement: string; language: string; public_url: string; published_at: string;
+  } | null;
+}
+export interface Projects { projects: Project[] }
 export interface Components {
   global: string;
   components: { name: string; effective: string; members: { kind: string; name: string; state: string }[] }[];

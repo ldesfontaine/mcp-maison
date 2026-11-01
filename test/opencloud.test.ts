@@ -72,7 +72,12 @@ describe('groupe opencloud', () => {
 
   it('chaque appel porte le jeton de service et l\'identité de l\'appelant', async () => {
     expect(await json('opencloud_overview'))
-      .toEqual({ version: '0.9.0', machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } });
+      .toEqual({
+        version: '0.9.0', machines: { total: 1, online: 1 }, status: { open_incidents: 0 },
+        alerts: { open: 2, unacknowledged: 1 },
+        modules: [{ id: 'probes', configured: true }, { id: 'firewall', configured: false },
+          { id: 'backups', configured: false }, { id: 'jobs', configured: true }]
+      });
     expect(opencloud.requests.slice(-2).map((request) => request.path).sort()).toEqual(['/api/counts', '/api/session']);
     expect(lastRequest()).toMatchObject({ path: '/api/counts', user: 'lucas', name: 'lucas' });
   });
@@ -80,7 +85,8 @@ describe('groupe opencloud', () => {
   it('listes filtrées : champs utiles, instants à la seconde, ni jetons d\'enrôlement', async () => {
     const { machines } = await json('opencloud_machines');
     expect(machines).toEqual([{ id: 'local', name: 'hote', hostname: 'hote', address: '10.0.0.1', os: 'debian',
-      arch: 'amd64', online: true, last_seen_at: '2026-10-21T08:12:33Z' }]);
+      arch: 'amd64', online: true, last_seen_at: '2026-10-21T08:12:33Z', role: 'generic',
+      modules: ['containers', 'probes'] }]);
     const text = extractText(await call('opencloud_machines'));
     expect(text).not.toContain('pending');
 
@@ -135,6 +141,50 @@ describe('groupe opencloud', () => {
     expect(keys.indexOf('targets')).toBeLessThan(keys.indexOf('components'));
   });
 
+  describe('opencloud_status : les projets (C9), plus les pages de statut', () => {
+    it('liste : GET /api/directory/projects, la page de statut est la publication du projet', async () => {
+      opencloud.requests.length = 0;
+      expect(await json('opencloud_status')).toEqual({ projects: [
+        { id: 'prj1', name: 'client-a', title: 'Client A', services: 1,
+          page: { slug: 'client-a', announcement: 'Maintenance samedi.',
+            public_url: 'https://oc.example.com/statut/client-a' } },
+        { id: 'prj2', name: 'interne', title: 'Interne', services: 0 }
+      ] });
+      expect(opencloud.requests.map((request) => request.path)).toEqual(['/api/directory/projects']);
+    });
+
+    it('fiche (id) : le projet et ses composants, filtrés par ?project=, jamais /api/status/pages', async () => {
+      opencloud.requests.length = 0;
+      expect(await json('opencloud_status', { id: 'prj1' })).toEqual({
+        project: { id: 'prj1', name: 'client-a', title: 'Client A', services: 1,
+          page: { slug: 'client-a', announcement: 'Maintenance samedi.',
+            public_url: 'https://oc.example.com/statut/client-a' } },
+        global: 'degraded',
+        components: [{ name: 'Site', state: 'degraded', members: [{ kind: 'probe', name: 'api', state: 'degraded' }] }]
+      });
+      const asked = (request: { path: string; query: Record<string, unknown> }) =>
+        `${request.path}?${new URLSearchParams(request.query as Record<string, string>)}`;
+      expect(opencloud.requests.map(asked).sort())
+        .toEqual(['/api/directory/projects/prj1?', '/api/status/components?project=prj1']);
+    });
+
+    it('aucune requête vers une route supprimée (/api/status/pages), aucun paramètre ?page=', async () => {
+      opencloud.requests.length = 0;
+      await json('opencloud_status');
+      await json('opencloud_status', { id: 'prj1' });
+      await json('opencloud_status', { id: 'prj1', incidents: true });
+      await json('opencloud_status', { incidents: true });
+      expect(opencloud.requests.some((request) => request.path.startsWith('/api/status/pages'))).toBe(false);
+      expect(opencloud.requests.some((request) => 'page' in request.query)).toBe(false);
+    });
+
+    it('projet inconnu : le 404 d\'openCloud, lisible', async () => {
+      const result = await call('opencloud_status', { id: 'nul' });
+      expect(result.isError).toBe(true);
+      expect(extractText(result)).toBe('openCloud 404 : not_found.');
+    });
+  });
+
   it('journal d\'un conteneur : tail transmis, la fin gardée, rien du contenu dans le journal d\'audit', async () => {
     const text = extractText(await call('opencloud_container_logs', { id: 'c1', tail: 500 }));
     expect(lastRequest()).toMatchObject({ path: '/api/containers/c1/logs', query: { tail: '500' } });
@@ -168,8 +218,9 @@ describe('groupe opencloud', () => {
   it('annuaire, statut, audit, ordres : les bonnes routes et requêtes', async () => {
     expect(extractText(await call('opencloud_directory', { view: 'export' }))).toBe('version: 1\nservices: []\n');
     expect(lastRequest().path).toBe('/api/manifest/export');
-    await json('opencloud_status', { incidents: true, id: 's1' });
-    expect(lastRequest()).toMatchObject({ path: '/api/status/incidents', query: { page: 's1' } });
+    await json('opencloud_status', { incidents: true, id: 'prj1' });
+    expect(lastRequest()).toMatchObject({ path: '/api/status/incidents', query: { project: 'prj1' } });
+    expect(lastRequest().query).not.toHaveProperty('page');
     expect(await json('opencloud_audit', { limit: 5, object_kind: 'probe', object_id: 'p1' })).toEqual({ events: [] });
     expect(lastRequest().query).toEqual({ limit: '5', object_kind: 'probe', object_id: 'p1' });
     await json('opencloud_actions', { machine: 'local' });

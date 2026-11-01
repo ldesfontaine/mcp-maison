@@ -242,13 +242,15 @@ describe('groupe opencloud_act', () => {
         .filter((line) => line.tool === 'opencloud_act').at(-1);
       expect(last).toMatchObject({
         ok: true,
-        result: { verb: 'machine.delete', ids: { id: 'audit-1' }, request_id: 'req-audit-1', state: 'awaiting_confirmation' }
+        result: {
+          verb: 'machine.delete', ids: { id: 'audit-1' }, request_id: 'req-audit-1', state: 'awaiting_confirmation'
+        }
       });
       expect(JSON.stringify(last)).not.toContain('run_id');
     });
   });
 
-  it('la route revoke n\'existe plus (C5b) : aucun verbe machine.revoke, aucune requête vers /actions/revoke', async () => {
+  it('route revoke supprimée (C5b) : pas de verbe machine.revoke, aucune requête vers /actions/revoke', async () => {
     await withMachineDelete();
     const result = await act('machine.revoke', { id: 'vps-paris-1' });
     expect(result.isError).toBe(true);

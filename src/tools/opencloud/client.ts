@@ -8,7 +8,7 @@ export class OpencloudError extends Error {}
 export class OpencloudTimeout extends OpencloudError {}
 
 /** Ce que le client utilise d'une config : l'URL, le jeton (lecture ou écriture) et le délai. */
-export type OpencloudTarget = Pick<OpencloudConfig, 'url' | 'token' | 'timeoutMs'>;
+type OpencloudTarget = Pick<OpencloudConfig, 'url' | 'token' | 'timeoutMs'>;
 
 /** La config, et pour qui on appelle : en-têtes d'identité de l'appelant (ToolContext.downstreamHeaders). */
 export interface OpencloudCall {

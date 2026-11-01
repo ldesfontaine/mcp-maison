@@ -71,7 +71,8 @@ async function describeRefusal(response: Response, token: string, verb?: string)
   }
   if (status === 409 && key.includes('verb_request.too_many')) {
     return 'Trop de demandes attendent déjà une confirmation pour ce jeton (409 verb_request.too_many) : '
-      + 'l\'opérateur doit confirmer ou rejeter les demandes en attente dans l\'interface d\'openCloud, puis réessayer.';
+      + 'l\'opérateur doit confirmer ou rejeter les demandes en attente dans l\'interface d\'openCloud, '
+      + 'puis réessayer.';
   }
   if (status === 409 || status === 422) return `openCloud refuse l'action (${status}) : ${key}`;
   return `openCloud ${status} : ${key}.`;

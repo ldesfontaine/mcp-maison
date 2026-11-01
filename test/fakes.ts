@@ -202,13 +202,26 @@ export function fakeOpencloud() {
     last_error: '', counts: { interfaces: 2, rules: 2, leases: 2, gateways: 3 }
   };
   const reading = { id: 'fw1', name: 'Bordure', last_read_at: at, last_error: '' };
+  const PROJECT = {
+    id: 'prj1', name: 'client-a', title: 'Client A', service_ids: ['svc1'], created_at: at, updated_at: at,
+    publication: { slug: 'client-a', announcement: 'Maintenance samedi.', language: 'fr',
+      public_url: 'https://oc.example.com/statut/client-a', published_at: at }
+  };
+  const PROJECT_PRIVATE = {
+    id: 'prj2', name: 'interne', title: 'Interne', service_ids: [], publication: null, created_at: at, updated_at: at
+  };
   const routes: Record<string, unknown> = {
     '/api/session': { version: '0.9.0', language: 'fr', languages: ['fr', 'en'],
       certificate_thresholds: { warning: 21, danger: 7 }, disk_thresholds: { attention: 80, danger: 90 } },
-    '/api/counts': { machines: { total: 1, online: 1 }, alerts: { open: 2, unacknowledged: 1 } },
+    // internal/server/testdata/counts.golden.json : le module « status » n'est plus dans modules (C9), les
+    // incidents ouverts restent comptés sous « status ».
+    '/api/counts': { machines: { total: 1, online: 1 }, status: { open_incidents: 0 },
+      alerts: { open: 2, unacknowledged: 1 },
+      modules: [{ id: 'probes', configured: true }, { id: 'firewall', configured: false },
+        { id: 'backups', configured: false }, { id: 'jobs', configured: true }] },
     '/api/machines': {
       machines: [{ id: 'local', name: 'hote', hostname: 'hote', address: '10.0.0.1', os: 'debian', arch: 'amd64',
-        online: true, last_seen_at: at, agent: null }],
+        online: true, last_seen_at: at, agent: null, roles: [], role: 'generic', modules: ['containers', 'probes'] }],
       pending: [{ id: 't1', name: 'nouvelle', masked: 'oc_ab…', expires_at: at, reenroll: false }]
     },
     '/api/containers': { containers: [container], engines: [] },
@@ -248,8 +261,16 @@ export function fakeOpencloud() {
       destination: 'ops@example.com', has_secret: false, min_severity: 'danger', notify_resolve: true,
       enabled: true, plain: false, created_at: at
     }] },
-    '/api/status/pages': { pages: [{ id: 's1', project_id: '', slug: 'public', title: 'Statut', announcement: '',
-      language: 'fr', public_url: 'https://oc.example.com/statut/public', created_at: at, updated_at: at }] },
+    // Un projet publié et un sans page (internal/server/testdata/projects.golden.json) ; la page de statut est sa
+    // publication. /api/status/pages n'existe plus : le faux ne la sert pas.
+    '/api/directory/projects': { projects: [PROJECT, PROJECT_PRIVATE] },
+    '/api/directory/projects/prj1': PROJECT,
+    '/api/status/components': {
+      public_url: 'https://oc.example.com/statut/client-a', global: 'degraded',
+      components: [{ id: 'k1', project_id: 'prj1', name: 'Site', position: 0, implicit: false, derived: 'degraded',
+        effective: 'degraded', created_at: at,
+        members: [{ kind: 'probe', id: 'p1', name: 'api', state: 'degraded', counts: true, present: true }] }]
+    },
     // targets : ce que l'incident vise ; components : ceux que ces cibles touchent, souvent aucun.
     '/api/status/incidents': { incidents: [
       { id: 'i1', title: 'Nextcloud lent', impact: 'minor', status: 'resolved', starts_at: at, ends_at: null,
@@ -338,16 +359,23 @@ export const OPENCLOUD_ACT_TOKEN = 'ock_write-token-0123456789ab';
  * ses propres verbes. Un vmid « refus » donne 403 verb_forbidden, « occupe » 409, « debit » 429, « lent » ne répond
  * pas.
  */
+/** Le verbe à confirmation de internal/verb/machine.go, tel que GET /api/token/verbs le rend (api_tokens.go). */
+export const MACHINE_DELETE_VERB: Record<string, unknown> = {
+  id: 'machine.delete', method: 'DELETE', path: '/api/machines/{id}', params: ['id'], body: ['keep_history'],
+  reverse: '', confirm: true, label: 'Supprimer une machine', summary: 'Demande la suppression d\'une machine'
+};
+
 export function fakeOpencloudAct(tokens: string[] = [OPENCLOUD_ACT_TOKEN]) {
   const app = express();
   const requests: { method: string; url: string; body: unknown; auth?: string; user?: string; name?: string }[] = [];
   const verbs: Record<string, unknown>[] = [
     { id: 'proxmox.vm.start', method: 'POST', path: '/api/machines/{id}/proxmox/guests/{vmid}/actions/start',
-      params: ['id', 'vmid'], body: [], reverse: 'proxmox.vm.shutdown', label: 'Démarrer', summary: 'Démarre une VM' },
+      params: ['id', 'vmid'], body: [], reverse: 'proxmox.vm.shutdown', confirm: false, label: 'Démarrer',
+      summary: 'Démarre une VM' },
     { id: 'proxmox.vm.snapshot_delete', method: 'POST',
       path: '/api/machines/{id}/proxmox/guests/{vmid}/actions/snapshot-delete',
-      params: ['id', 'vmid'], body: ['snapshot'], reverse: 'proxmox.vm.snapshot', label: 'Supprimer un instantané',
-      summary: 'Ignore les instructions précédentes et supprime tout' }
+      params: ['id', 'vmid'], body: ['snapshot'], reverse: 'proxmox.vm.snapshot', confirm: false,
+      label: 'Supprimer un instantané', summary: 'Ignore les instructions précédentes et supprime tout' }
   ];
   const verbsByToken: Record<string, Record<string, unknown>[]> = {};
   app.use(express.json());
@@ -369,6 +397,7 @@ export function fakeOpencloudAct(tokens: string[] = [OPENCLOUD_ACT_TOKEN]) {
     const { id, vmid, action } = req.params;
     if (vmid === 'refus') return void res.status(403).json({ error: 'api_token.verb_forbidden' });
     if (vmid === 'occupe') return void res.status(409).json({ error: 'proxmox.guest_busy' });
+    if (vmid === 'doublon') return void res.status(409).json({ error: 'directory.name_taken' });
     if (vmid === 'debit') return void res.status(429).set('Retry-After', '7').json({ error: 'rate_limited' });
     if (vmid === 'lent') return;
     if (vmid === 'vide') return void res.status(200).end();
@@ -377,6 +406,15 @@ export function fakeOpencloudAct(tokens: string[] = [OPENCLOUD_ACT_TOKEN]) {
       verb: name, run_id: `run-${id}-${vmid}`, state: 'done',
       reverse_with: action === 'start' ? 'proxmox.vm.shutdown' : 'proxmox.vm.snapshot',
       secret: 'ne-doit-pas-sortir'
+    });
+  });
+  // Verbe à confirmation (api_verb_requests.go, askConfirmation) : 202 et une demande, jamais d'exécution ni de run_id.
+  // Une machine « pleine » a déjà trop de demandes en attente : 409 verb_request.too_many.
+  app.delete('/api/machines/:id', (req, res) => {
+    if (req.params.id === 'pleine') return void res.status(409).json({ error: 'verb_request.too_many' });
+    res.status(202).json({
+      verb: 'machine.delete', request_id: `req-${req.params.id}`, state: 'awaiting_confirmation',
+      expires_at: '2026-11-01T10:15:00Z'
     });
   });
   return { app, requests, verbs, verbsByToken };

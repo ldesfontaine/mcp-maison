@@ -23,7 +23,7 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
 | description d'un paramètre (`describe()`) | 90 caractères |
 | paramètres | 6 au plus par outil |
 | `tools/list` complet (core + gitlab), en JSON | moins de 4 000 caractères, **temporairement** (3 000 jusqu'à #5) : le temps de la veille sur le chargement à la demande, [issue #6](https://github.com/ldesfontaine/mcp-maison/issues/6). Aujourd'hui 2 978 avec 4 outils gitlab ; 2 994 avec 3 ; 2 802 avec 2, contre 3 892 au départ |
-| `tools/list` d'un groupe, en JSON | 3 700 caractères au plus (`opencloud` : 13 outils, 3 630 ; plafond porté à 3 700, **temporairement**, issue [#6](https://github.com/ldesfontaine/mcp-maison/issues/6), 3 000 avant) |
+| `tools/list` d'un groupe, en JSON | 3 700 caractères au plus (`opencloud` : 13 outils, 3 645 ; plafond porté à 3 700, **temporairement**, issue [#6](https://github.com/ldesfontaine/mcp-maison/issues/6), 3 000 avant) |
 | résultat | 4 000 caractères par défaut (`maxResultChars`) ; au-delà le runner tronque : `[… tronqué, N caractères sur M]`, journalisé `truncated:true` |
 | erreur d'API amont | 300 caractères, sans HTML ni jeton (`cleanUpstreamError`) |
 
@@ -47,10 +47,12 @@ description qui dit « quand utiliser » en une phrase est mieux retrouvée et m
   (`refine`), descriptions resserrées.
 - `opencloud_*` : liste et fiche dans un même outil (`id` optionnel), 13 outils (`opencloud_proxmox`, `opencloud_firewalls` : plusieurs routes par outil, via `view`) ; champs utiles
   seulement, sans `null` ni vide, instants à la seconde ; listes bornées à 100 avec `total` ; règles, baux et VM bornés à 7 000 caractères (100 éléments) avec `total` ; journal d'un conteneur
-  borné à 12 000 caractères en gardant la fin. Bornes des identifiants (`refine`) hors du schéma publié.
-- `opencloud_act` (groupe à part, 2 outils : 305 + 593 = 901 caractères de `tools/list`, plafond 3 000) : les verbes ne sont
+  borné à 12 000 caractères en gardant la fin ; `opencloud_machines` ajoute `role` et `modules` ; `opencloud_status` : projets
+  (`id`, `name`, `title`, nombre de services, page de statut si publiée), bornés à 100 avec `total`. Bornes des identifiants (`refine`) hors du schéma publié.
+- `opencloud_act` (groupe à part, 2 outils : 305 + 636 = 944 caractères de `tools/list`, plafond 3 000) : les verbes ne sont
   pas dans les définitions mais lus dans openCloud par `opencloud_verbs` (7 000 caractères au plus) ; `opencloud_act` ne
-  rend que `verb`, `run_id`, `state`, `reverse_with`. Le plafond « core + gitlab » ne compte pas ce groupe (`groupOf`
+  rend que `verb`, `run_id`, `state`, `reverse_with` (pour un verbe à confirmation : `verb`, `state`, `request_id`,
+  `expires_at` et une phrase « en attente de confirmation », jamais de `run_id`). Le plafond « core + gitlab » ne compte pas ce groupe (`groupOf`
   du test de budget range `opencloud_verbs` et `opencloud_act` à part, malgré leur préfixe).
 - `annotations` justes sur chaque outil : `readOnlyHint` et `openWorldHint: false` pour ce qui ne touche que le
   serveur ; `destructiveHint` / `idempotentHint` pour ce qui écrit. Claude s'en sert pour confirmer ou relancer.

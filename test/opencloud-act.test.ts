@@ -5,7 +5,7 @@ import { opencloudActConfig } from '../src/tools/opencloud-act/config.js';
 import { singleTokenTable } from '../src/tools/opencloud-act/tokens.js';
 import { createOpencloudActTools } from '../src/tools/opencloud-act/tools.js';
 import type { ToolContext } from '../src/tools/types.js';
-import { fakeOpencloudAct, OPENCLOUD_ACT_TOKEN } from './fakes.js';
+import { fakeOpencloudAct, MACHINE_DELETE_VERB, OPENCLOUD_ACT_TOKEN } from './fakes.js';
 import { callTool, DEV_TOKENS, extractText, listen, startMcp } from './helpers.js';
 
 let opencloud: ReturnType<typeof fakeOpencloudAct>;
@@ -37,6 +37,12 @@ const call = (name: string, args: Record<string, unknown> = {}, token = DEV_TOKE
   callTool(mcp.url, token, name, args);
 const act = (verb: string, args: Record<string, unknown> = {}) => call('opencloud_act', { verb, args });
 const posts = () => opencloud.requests.filter((request) => request.method === 'POST');
+/** Le jeton porte machine.delete (verbe à confirmation) en plus des verbes du faux ; le cache est relu. */
+const withMachineDelete = async () => {
+  opencloud.verbs.push(structuredClone(MACHINE_DELETE_VERB));
+  await call('opencloud_verbs');
+  opencloud.requests.length = 0;
+};
 /** Un contexte d'outil appelé sans serveur MCP : pour régler le délai et les en-têtes. */
 const directContext = (headers: Record<string, string> = { 'X-MCP-Maison-User': 'lucas' }) =>
   ({
@@ -169,6 +175,90 @@ describe('groupe opencloud_act', () => {
     const result = await act('proxmox.vm.start', { id: 'pve', vmid: 'occupe' });
     expect(result.isError).toBe(true);
     expect(extractText(result)).toBe('openCloud refuse l\'action (409) : proxmox.guest_busy');
+  });
+
+  it('409 doublon (directory.name_taken, qui était un 422) : la clé de refus, pas une erreur d\'ailleurs', async () => {
+    const result = await act('proxmox.vm.start', { id: 'pve', vmid: 'doublon' });
+    expect(result.isError).toBe(true);
+    expect(extractText(result)).toBe('openCloud refuse l\'action (409) : directory.name_taken');
+  });
+
+  describe('verbe à confirmation (machine.delete, DELETE /api/machines/{id})', () => {
+    it('opencloud_verbs dit confirm: true, sans inverse', async () => {
+      await withMachineDelete();
+      const listed = JSON.parse(extractText(await call('opencloud_verbs')));
+      const verb = listed.verbs.find((entry: { id: string }) => entry.id === 'machine.delete');
+      expect(verb).toEqual({
+        id: 'machine.delete', summary: 'Demande la suppression d\'une machine', params: ['id'],
+        body: ['keep_history'], confirm: true
+      });
+      expect(listed.verbs[0].confirm).toBeUndefined(); // un verbe ordinaire ne porte pas le champ
+    });
+
+    it('202 awaiting_confirmation sans run_id : « en attente », ni erreur ni run, rien à défaire', async () => {
+      await withMachineDelete();
+      const result = await act('machine.delete', { id: 'vps-paris-1', keep_history: true });
+      expect(result.isError).toBeFalsy();
+      const [first, second, ...rest] = extractText(result).split('\n');
+      expect(JSON.parse(first)).toEqual({
+        verb: 'machine.delete', state: 'awaiting_confirmation', request_id: 'req-vps-paris-1',
+        expires_at: '2026-11-01T10:15:00Z'
+      });
+      expect(second).toBe('en attente de confirmation dans l\'interface d\'openCloud : rien n\'a été exécuté.');
+      expect(rest).toEqual([]);
+      expect(extractText(result)).not.toMatch(/run_id|pour défaire/);
+    });
+
+    it('le DELETE porte keep_history dans son corps, et seulement les champs du verbe', async () => {
+      await withMachineDelete();
+      await act('machine.delete', { id: 'vps-paris-1', keep_history: true });
+      const sent = opencloud.requests.filter((request) => request.method === 'DELETE');
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({
+        url: '/api/machines/vps-paris-1', auth: `Bearer ${OPENCLOUD_ACT_TOKEN}`, user: 'lucas',
+        body: { keep_history: true }
+      });
+      const extra = await act('machine.delete', { id: 'vps-paris-1', force: true });
+      expect(extra.isError).toBe(true);
+      expect(extractText(extra)).toContain('Argument inconnu pour machine.delete : force');
+      expect(opencloud.requests.filter((request) => request.method === 'DELETE')).toHaveLength(1);
+    });
+
+    it('409 verb_request.too_many : dit de confirmer ou rejeter les demandes en attente', async () => {
+      await withMachineDelete();
+      const result = await act('machine.delete', { id: 'pleine' });
+      expect(result.isError).toBe(true);
+      expect(extractText(result)).toBe(
+        'Trop de demandes attendent déjà une confirmation pour ce jeton (409 verb_request.too_many) : '
+        + 'l\'opérateur doit confirmer ou rejeter les demandes en attente dans l\'interface d\'openCloud, '
+        + 'puis réessayer.');
+    });
+
+    it('journal d\'audit : la demande (request_id, state), pas de run', async () => {
+      await withMachineDelete();
+      await act('machine.delete', { id: 'audit-1', keep_history: false });
+      const audit = readFileSync(join(mcp.dataDir, 'audit.jsonl'), 'utf8');
+      const last = audit.trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>)
+        .filter((line) => line.tool === 'opencloud_act').at(-1);
+      expect(last).toMatchObject({
+        ok: true,
+        result: {
+          verb: 'machine.delete', ids: { id: 'audit-1' }, request_id: 'req-audit-1', state: 'awaiting_confirmation'
+        }
+      });
+      expect(JSON.stringify(last)).not.toContain('run_id');
+    });
+  });
+
+  it('route revoke supprimée (C5b) : pas de verbe machine.revoke, aucune requête vers /actions/revoke', async () => {
+    await withMachineDelete();
+    const result = await act('machine.revoke', { id: 'vps-paris-1' });
+    expect(result.isError).toBe(true);
+    expect(extractText(result)).toContain('Verbe inconnu : machine.revoke');
+    expect(extractText(result)).toContain('machine.delete');
+    expect(opencloud.requests.some((request) => request.url.includes('revoke'))).toBe(false);
+    const listed = JSON.parse(extractText(await call('opencloud_verbs')));
+    expect(listed.verbs.map((verb: { id: string }) => verb.id)).not.toContain('machine.revoke');
   });
 
   it('jeton refusé par openCloud : erreur lisible, sans le jeton', async () => {

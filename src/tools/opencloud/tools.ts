@@ -171,28 +171,29 @@ export function createOpencloudTools(config: OpencloudConfig): Tool[] {
 
     readTool(config, {
       name: 'opencloud_status',
-      description: 'Pages de statut : liste, fiche (id), ou leurs incidents.',
+      description: 'Projets et leur page de statut : liste, fiche (id), ou leurs incidents.',
       inputSchema: { id: id.optional(), incidents: z.boolean().optional() },
       async run({ id, incidents }, call) {
         if (incidents) {
-          // ?page= filtre par page de statut (son id), ce n'est pas une pagination.
-          const listing = await getJson<Api.Incidents>(call, '/api/status/incidents', { page: id || undefined });
+          // ?project= filtre par projet (son id), ce n'est pas une pagination.
+          const listing = await getJson<Api.Incidents>(call, '/api/status/incidents', { project: id || undefined });
           return toJson(shapeIncidents(listing.incidents));
         }
         if (id) {
-          const [page, components] = await Promise.all([
-            getJson<Api.StatusPage>(call, `/api/status/pages/${segment(id)}`),
-            getJson<Api.Components>(call, '/api/status/components', { page: id })
+          const [project, components] = await Promise.all([
+            getJson<Api.Project>(call, `/api/directory/projects/${segment(id)}`),
+            getJson<Api.Components>(call, '/api/status/components', { project: id })
           ]);
           return toJson({
-            page: shapePage(page), global: components.global,
+            project: shapeProject(project), global: components.global,
             components: components.components.map(({ name, effective, members }) => ({
               name, state: effective, members: members.map(({ kind, name, state }) => ({ kind, name, state }))
             }))
           });
         }
-        const { pages } = await getJson<Api.StatusPages>(call, '/api/status/pages');
-        return toJson({ pages: pages.map(shapePage) });
+        const { projects } = await getJson<Api.Projects>(call, '/api/directory/projects');
+        const { total, items } = bounded(projects, shapeProject);
+        return toJson({ total, projects: items });
       }
     }),
 
@@ -315,7 +316,8 @@ export function createOpencloudTools(config: OpencloudConfig): Tool[] {
 function shapeMachine(machine: Api.Machine, detail: boolean) {
   const base = {
     id: machine.id, name: machine.name, hostname: machine.hostname, address: machine.address, os: machine.os,
-    arch: machine.arch, online: machine.online, last_seen_at: machine.last_seen_at, agent: machine.agent?.version
+    arch: machine.arch, online: machine.online, last_seen_at: machine.last_seen_at, role: machine.role,
+    modules: machine.modules, agent: machine.agent?.version
   };
   if (!detail) return base;
   const agent = machine.agent && {
@@ -386,7 +388,7 @@ function shapeContainerDetail({ container, engine, directory, transitions }: Api
 }
 
 /** Les dernières lignes, la fin d'abord : si le budget manque, ce sont les plus anciennes qui partent. */
-export function formatLogs(lines: Api.LogLine[]): string {
+function formatLogs(lines: Api.LogLine[]): string {
   const formatted = lines.map((line) => {
     const at = compact(line.at ?? '') as string;
     return `${at}${line.stream === 'stderr' ? ' [stderr]' : ''} ${clip(line.text, LOG_LINE_CHARS)}`.trim();
@@ -468,9 +470,15 @@ function uptimeOf(days: Api.ProbeDay[] | undefined): number | undefined {
   return Math.floor((success / total) * 10_000) / 100;
 }
 
-function shapePage(page: Api.StatusPage) {
-  const { id, slug, title, announcement, public_url } = page;
-  return { id, slug, title, announcement, public_url };
+/** Le projet, et sa page de statut quand il est publié (publication nulle sinon). */
+function shapeProject(project: Api.Project) {
+  const { id, name, title, publication } = project;
+  return {
+    id, name, title, services: project.service_ids.length,
+    page: publication && {
+      slug: publication.slug, announcement: clip(publication.announcement, 300), public_url: publication.public_url
+    }
+  };
 }
 
 /**

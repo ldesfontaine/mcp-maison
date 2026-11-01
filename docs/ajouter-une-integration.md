@@ -166,6 +166,9 @@ Il répond quel que soit `ALLOWED_HOSTS`, pour la sonde Docker.
 - Routes lues : celles de `src/tools/opencloud/tools.ts`, dont `/api/session` (la `version` de
   `opencloud_overview`), `/api/directory/gaps` (`opencloud_directory`, `view: gaps`), `/api/machines/{id}/proxmox` et `/api/firewalls[/{id}[/rules|interfaces|leases]]`. openCloud les rejoue dans
   `internal/server/api_tokens_contract_test.go` : une route ou un champ lu qui change s'y reporte.
+- **`opencloud_status` lit les projets** : `/api/directory/projects[/{id}]` (la page de statut est la publication du projet),
+  `/api/status/components?project=<id>` et `/api/status/incidents?project=<id>`. Les routes `/api/status/pages` et le
+  paramètre `?page=` n'existent plus côté openCloud (refonte UX C9). `opencloud_machines` rend aussi `role` et `modules`.
 
 ## Le groupe `opencloud_act`
 
@@ -178,11 +181,17 @@ Agir dans openCloud. `TOOL_GROUPS=core,opencloud_act`, permission `opencloud:act
   inconnu), refuse localement un verbe inconnu en listant les existants, construit la requête depuis
   `method`/`path`/`params`/`body` du contrat, et rend `{verb, run_id, state, reverse_with}` et « pour défaire : … ».
   Un verbe ajouté plus tard par openCloud marche sans toucher mcp-maison.
+- **Verbes à confirmation** (`confirm: true` dans le contrat, aujourd'hui `machine.delete`, `DELETE /api/machines/{id}`,
+  corps `keep_history`) : le jeton n'exécute rien, openCloud répond `202` `{verb, request_id, state:
+  "awaiting_confirmation", expires_at}` (sans `run_id`) et l'opérateur confirme dans son interface (15 min). `opencloud_act`
+  le rend comme une attente (« en attente de confirmation dans l'interface d'openCloud : rien n'a été exécuté »), ni
+  erreur ni run, sans verbe pour défaire. Un `DELETE` porte son corps quand le verbe en déclare un.
 - **Valeurs de chemin** : identifiants simples seulement (`[A-Za-z0-9._-]`, 64 au plus, premier caractère
   alphanumérique) ; jamais `/`, `..`, `?`, `%`. Un argument que le verbe ne déclare pas est refusé.
 - **Erreurs** : `403 verb_forbidden` (« ce jeton ne porte pas ce verbe »), `429` avec `Retry-After`, `409` et `422` avec la
-  clé de refus d'openCloud telle quelle. Un délai dépassé dit que l'action a peut-être été exécutée.
-- **Journal** : le verbe, les identifiants de chemin, `run_id` et `state` ; jamais le corps.
+  clé de refus d'openCloud telle quelle (un doublon de l'annuaire est un `409 directory.name_taken`, plus un `422`) ;
+  `409 verb_request.too_many` : trop de demandes attendent une confirmation, à confirmer ou rejeter dans openCloud. Un délai dépassé dit que l'action a peut-être été exécutée.
+- **Journal** : le verbe, les identifiants de chemin, `run_id` (ou `request_id`) et `state` ; jamais le corps.
 - **Pourquoi un jeton à part** (`OPENCLOUD_ACT_TOKENS_FILE`, distinct de `OPENCLOUD_TOKEN`) : on peut donner
   `opencloud:read` sans `opencloud:act`, et le jeton d'écriture ne sert jamais à lire. Deux droits, deux jetons.
 - **Un jeton d'écriture par identité** : `OPENCLOUD_ACT_TOKENS_FILE` pointe un fichier JSON `{ "service:raph": "…",

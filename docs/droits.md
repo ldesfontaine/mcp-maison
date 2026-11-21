@@ -78,7 +78,8 @@ users:
 - La forme `service:<id>` (`^service:[a-z][a-z0-9-]{1,31}$`) est vérifiée ; une clé `service:` mal écrite bloque le
   démarrage avec sa position, comme toute entrée invalide.
 - `opencloud:act` à un agent : à bien peser, il agit seul. Son jeton d'écriture openCloud est le sien
-  (`deploiement.md`) et ne porte que les verbes cochés pour lui.
+  (`deploiement.md`) et ne porte que les verbes cochés pour lui. Un jeton d'écriture par identité : pas d'entrée `default` dans le
+  fichier de jetons (R-G2-8).
 
 ## Modifier sans redémarrer
 

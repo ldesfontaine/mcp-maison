@@ -21,6 +21,12 @@ services:
       # Droits (optionnel) : le DOSSIER, pas le fichier seul, sinon une modification (nouvel inode)
       # ne serait pas vue par le conteneur. Décommenter et régler PERMISSIONS_FILE=/app/config/permissions.yaml.
       # - ./config:/app/config:ro
+    # Réseau : le `bridge` du projet (défaut de Compose). Jamais `network_mode: host` : le service est derrière un
+    # reverse proxy exposé à Internet, il ne doit pas partager la pile réseau de l'hôte (R-G2-8).
+    # Pour joindre openCloud qui écoute sur l'hôte, `host-gateway` suffit : donner à openCloud son nom de
+    # `public_url` (OPENCLOUD_URL en https://, docs/deploiement.md) plutôt que de passer en réseau hôte.
+    # extra_hosts:
+    #   - "cloud.exemple.lan:host-gateway"
     # Exposé en local uniquement : un reverse proxy HTTPS (Traefik, Caddy, Nginx) se met devant.
     ports:
       - "127.0.0.1:3000:3000"

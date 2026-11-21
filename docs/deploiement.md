@@ -143,8 +143,8 @@ Toutes celles que le serveur lit, et rien d'autre (un test le vérifie, ainsi qu
 | `OPENCLOUD_TOKEN` | | Jeton d'API d'openCloud, portée `read` |
 | `OPENCLOUD_TIMEOUT_MS` | 10000 | Délai d'un appel à openCloud |
 | `OPENCLOUD_ACT_URL` | | Groupe opencloud_act : l'instance, mêmes règles que `OPENCLOUD_URL` (peut en avoir la valeur) |
-| `OPENCLOUD_ACT_TOKENS_FILE` | | Fichier JSON `{ "service:raph": "…", "<sub>": "…", "default": "…" }` : un jeton d'API openCloud (portée `write`) par identité ; droits `600` exigés (voir plus bas) |
-| `OPENCLOUD_ACT_TOKEN` | | Ancien réglage, un seul jeton pour tous (utilisé comme `default`, avec un avertissement) ; ne pas le combiner avec le fichier |
+| `OPENCLOUD_ACT_TOKENS_FILE` | | Fichier JSON `{ "service:raph": "…", "<sub>": "…" }` : un jeton d'API openCloud (portée `write`) par identité ; droits `600` exigés (voir plus bas) |
+| `OPENCLOUD_ACT_TOKEN` | | Ancien réglage à ne plus utiliser (R-G2-8), un seul jeton pour tous (utilisé comme `default`, avec un avertissement) ; ne pas le combiner avec le fichier |
 
 Une variable vide compte comme absente. Une config du cœur invalide arrête le serveur avec la liste de
 ce qui ne va pas (noms des variables, jamais leurs valeurs). Une config de groupe incomplète ignore
@@ -180,12 +180,24 @@ passent de la commande au fichier, ou du presse-papiers au fichier par une saisi
    jq --arg t "$T" '. + {"service:raph": $t}' "$f" > "$f.new" && mv "$f.new" "$f"; unset T
    sudo chown 1000:1000 "$f"     # lisible par le conteneur, par lui seul
    ```
-   Entrées : `service:<id>` pour un agent, le `sub` OIDC (celui de `whoami`) pour une personne, `default` pour les
-   autres. Sans entrée pour l'identité **et** sans `default`, l'appel est refusé (« aucun jeton d'écriture pour cette
-   identité ») : jamais de repli sur le jeton d'un autre.
+   Entrées : `service:<id>` pour un agent, le `sub` OIDC (celui de `whoami`) pour une personne. **Pas d'entrée
+   `default`** (règle R-G2-8 : un jeton sert un seul client) : le code l'accepte et en ferait le jeton de toutes les
+   identités sans entrée, c'est-à-dire le jeton d'écriture le plus large, livré par la première faille du service.
+   Sans entrée pour l'identité et sans `default`, l'appel est refusé (« aucun jeton d'écriture pour cette identité ») :
+   jamais de repli sur le jeton d'un autre. Deux entrées ne doivent pas non plus porter la même valeur (le code ne le
+   vérifie pas).
 5. **Brancher** dans `.env` : `TOOL_GROUPS=core,gitlab,opencloud_act`, `OPENCLOUD_ACT_URL=…`,
    `OPENCLOUD_ACT_TOKENS_FILE=/app/config/opencloud-act-tokens.json` ; monter le **dossier** `./config:/app/config:ro`
    (voir `docker-compose.yml`). Retirer `OPENCLOUD_ACT_TOKEN` s'il existait.
+
+**Réseau.** Le conteneur tourne sur le `bridge` du projet Compose, sans `network_mode: host` (`docker-compose.yml`) :
+mcp-maison est exposé à Internet par le reverse proxy, il ne partage pas la pile réseau de l'hôte. Pour joindre un
+openCloud qui écoute sur l'hôte, `extra_hosts: ["<nom de public_url>:host-gateway"]` suffit, avec `OPENCLOUD_URL` en
+`https://<ce nom>:<port>` : `host.docker.internal` est refusé par openCloud (`bad_host`) et, en `http://`, par
+mcp-maison (IP privée ou boucle locale seulement).
+
+**Inscription des clients.** Seules les adresses de `OAUTH_REDIRECT_ALLOWLIST` sont acceptées (`identite.md`) ; ne
+l'élargir qu'à des adresses connues et exactes.
 
 Le fichier de jetons est refusé s'il est lisible par le groupe ou les autres (`chmod 600`), mal formé (JSON, objet
 de chaînes de 20 caractères au moins, pas de valeur d'exemple) ou illisible : le groupe `opencloud_act` n'est alors pas

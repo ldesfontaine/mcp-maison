@@ -97,6 +97,8 @@ il envoie la personne chez l'IdP, lit son identité sur `userinfo`, puis émet s
   `invalid_redirect_uri`. Défaut : `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`
   (annoncé par Anthropic comme futur remplaçant), et `http://127.0.0.1:*`, `http://localhost:*` (Claude Code,
   MCP Inspector : n'importe quel port). Une entrée est une URL exacte, ou `schéma://hôte:*`.
+  Le défaut admet la boucle locale sur n'importe quel port ; sur un serveur sans client local, le resserrer aux deux
+  adresses de Claude.
 
 ## L'identité suit l'IdP
 

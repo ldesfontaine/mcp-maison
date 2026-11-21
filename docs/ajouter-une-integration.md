@@ -195,9 +195,10 @@ Agir dans openCloud. `TOOL_GROUPS=core,opencloud_act`, permission `opencloud:act
 - **Pourquoi un jeton à part** (`OPENCLOUD_ACT_TOKENS_FILE`, distinct de `OPENCLOUD_TOKEN`) : on peut donner
   `opencloud:read` sans `opencloud:act`, et le jeton d'écriture ne sert jamais à lire. Deux droits, deux jetons.
 - **Un jeton d'écriture par identité** : `OPENCLOUD_ACT_TOKENS_FILE` pointe un fichier JSON `{ "service:raph": "…",
-  "<sub OIDC>": "…", "default": "…" }` (`src/tools/opencloud-act/tokens.ts`). Le handler prend le jeton de
-  `ctx.user` (clé `service:<id>` pour un agent, le `sub` pour une personne), sinon `default`, sinon refuse : jamais
-  le jeton d'un autre. Le cache des verbes est par jeton. Le fichier est refusé s'il est lisible par le groupe ou les
+  "<sub OIDC>": "…" }` (`src/tools/opencloud-act/tokens.ts`). Le handler prend le jeton de
+  `ctx.user` (clé `service:<id>` pour un agent, le `sub` pour une personne), sinon `default` si le fichier en a un,
+  sinon refuse. **Ne pas écrire de `default`** (R-G2-8 : un jeton sert un seul client) : le code le permet encore, ce
+  serait un jeton d'écriture partagé entre identités. Le cache des verbes est par jeton. Le fichier est refusé s'il est lisible par le groupe ou les
   autres. Un nouveau groupe qui a besoin d'un secret par identité reprend ce modèle ; l'identité à utiliser est
   `getIdentityKey(user)`, qui distingue un agent d'une personne de même nom. Procédure : `deploiement.md`.
 - **Créer le jeton, côté openCloud** : Paramètres › Jetons d'API, nouveau jeton, portée **écriture**, cocher seulement les

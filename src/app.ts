@@ -36,6 +36,11 @@ export function createApp(rawEnv: NodeJS.ProcessEnv) {
     databasePath: config.DATABASE_PATH, publicUrl: config.oidc?.publicUrl ?? `http://localhost:${config.PORT}`,
     ttlSeconds: config.UPLOAD_LINK_TTL_MINUTES * 60
   });
+  // Le défaut admet la boucle locale sur tout port (Claude Code, MCP Inspector) ; il reste, mais on le dit.
+  if (config.oidc && env.OAUTH_REDIRECT_ALLOWLIST === undefined) {
+    console.warn('[oauth] OAUTH_REDIRECT_ALLOWLIST par défaut : la boucle locale (127.0.0.1, localhost) est admise '
+      + 'sur n\'importe quel port. Lister les adresses de retour attendues pour la restreindre.');
+  }
   const { tools, skipped } = loadToolGroups(config.toolGroups, env, { uploads });
   const authorizer = loadAuthorizer(config.PERMISSIONS_FILE);
   const audit = new AuditLog(config.AUDIT_LOG_PATH);

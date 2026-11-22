@@ -60,23 +60,47 @@ function readTokenFile(path: string): Map<string, string> {
   if (mode & 0o077) {
     throw new Error(`lisible par le groupe ou les autres (mode ${(mode & 0o777).toString(8)}) : chmod 600`);
   }
-  return parseTokens(readFileSync(path, 'utf8'));
+  const entries = parseTokens(readFileSync(path, 'utf8'));
+  warnAboutSharedEntries(entries);
+  return entries;
 }
 
-function toTable(entries: Map<string, string>): TokenTable {
+/** Une ligne par défaut de séparation : l'entrée `default`, puis les entrées de même valeur. Noms seulement. */
+function warnAboutSharedEntries(entries: Map<string, string>): void {
+  if (entries.has(DEFAULT_KEY)) {
+    console.warn(`[opencloud_act] entrée "${DEFAULT_KEY}" dans le fichier de jetons : un jeton partagé par toute `
+      + 'identité sans entrée. Un jeton par client est attendu ; la prochaine version la refusera.');
+  }
+  const byValue = new Map<string, string[]>();
+  for (const [key, value] of entries) byValue.set(value, [...(byValue.get(value) ?? []), key]);
+  for (const names of byValue.values()) {
+    if (names.length > 1) {
+      console.warn(`[opencloud_act] les entrées ${names.map((name) => `"${name}"`).join(', ')} portent le même jeton : `
+        + 'un jeton sert un seul client ; la prochaine version le refusera.');
+    }
+  }
+}
+
+function toTable(entries: Map<string, string>, warned: Set<string>): TokenTable {
   return {
     resolve(user) {
       // Une personne ne peut pas viser l'entrée d'un agent, même si son sub s'écrit « service:raph ».
       const key = getIdentityKey(user);
       const entry = entries.has(key) && (isServiceAccount(user) || !key.startsWith('service:')) ? key : DEFAULT_KEY;
       const token = entries.get(entry);
+      // Une fois par identité et par démarrage : `warned` survit aux rechargements du fichier.
+      if (token && entry === DEFAULT_KEY && key !== DEFAULT_KEY && !warned.has(key)) {
+        warned.add(key);
+        console.warn(`[opencloud_act] l'identité "${key}" n'a pas de jeton propre : elle est servie par le jeton `
+          + `"${DEFAULT_KEY}", partagé.`);
+      }
       return token ? { token, fingerprint: hashSecret(token), entry } : undefined;
     }
   };
 }
 
 /** Une table fixe (un seul jeton `default` : OPENCLOUD_ACT_TOKEN, ou les tests). */
-export const singleTokenTable = (token: string): TokenTable => toTable(new Map([[DEFAULT_KEY, token]]));
+export const singleTokenTable = (token: string): TokenTable => toTable(new Map([[DEFAULT_KEY, token]]), new Set());
 
 /**
  * La table lue dans un fichier. Au chargement : lève une erreur si le fichier est trop ouvert ou mal formé.
@@ -85,7 +109,8 @@ export const singleTokenTable = (token: string): TokenTable => toTable(new Map([
  */
 export function loadTokenFile(path: string): TokenTable {
   let entries = readTokenFile(path);
-  let table = toTable(entries);
+  const warned = new Set<string>();
+  let table = toTable(entries, warned);
   let lastSeen = statSync(path);
   let lastProblem: string | undefined;
   return {
@@ -96,7 +121,7 @@ export function loadTokenFile(path: string): TokenTable {
         if (changed || current.ino !== lastSeen.ino) {
           lastSeen = current;
           entries = readTokenFile(path);
-          table = toTable(entries);
+          table = toTable(entries, warned);
           lastProblem = undefined;
           console.log('[opencloud_act] fichier de jetons rechargé');
         }
